@@ -1,16 +1,16 @@
 #!/bin/bash
 
 test () {
-    echo "$($2)"
-    # # Execute the given ops pattern.
-    # RESULT=`echo "$($2)"`
-    # # If produced result and expected result is equal then test is passed.
-    # if [[ $RESULT -eq $3 ]] 
-    # then
-    #     echo "TEST $1 PASSED"
-    # else
-    #     echo "TEST $1 FAILED"
-    # fi
+    # echo "$($2)"
+    # Execute the given ops pattern.
+    RESULT=`echo "$($2)"`
+    # If produced result and expected result is equal then test is passed.
+    if [[ $RESULT -eq $3 ]] 
+    then
+        echo "TEST $1 PASSED"
+    else
+        echo "TEST $1 FAILED"
+    fi
 
 }
 
@@ -26,7 +26,8 @@ gcc -o double double.c -lm
 gcc -o square square.c -lm
 
 # Tests
-# test 1 "./sqroot 5" 2
-# test 2 "./double square 2" 16
-# test 3 "./sqroot square 4" 4
+test 1 "./sqroot 5" 2
+test 2 "./double square 2" 16
+test 3 "./sqroot square 4" 4
 test 4 "./double square sqroot 4" 8
+test 5 "./double square sqroot double square 4" 256
