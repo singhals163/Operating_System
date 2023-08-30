@@ -5,7 +5,7 @@ calculated_size=0
 
 find_actual_size()
 {
-	output=$(du -bs $1)
+	output=$(du -bs -L $1)
 	actual_size=$(echo $output | cut -d ' ' -f 1)
 }
 
@@ -70,4 +70,18 @@ then
 	echo "Testcase 3 failed"
 else
 	echo "Testcase 3 passed"
+fi
+
+#Testcase 4
+find_actual_size Testcase4
+find_calculated_size Testcase4
+echo ""
+echo "Expected output: $actual_size"
+echo "Your output: $calculated_size"
+
+if [ $actual_size != "$calculated_size" ]
+then
+	echo "Testcase 4 failed"
+else
+	echo "Testcase 4 passed"
 fi
