@@ -31,3 +31,9 @@ test 2 "./double square 2" 16
 test 3 "./sqroot square 4" 4
 test 4 "./double square sqroot 4" 8
 test 5 "./double square sqroot double square 4" 256
+test 6 "./square square square square double double double double double double double double double double 10" 10240000000000000000
+test 7 "./sqroot sqroot sqroot 4" 1
+test 8 "./sqroot 7" 3
+test 9 "./square sqroot double sqroot 8" 4
+test 10 "./sqroot square 5" 4
+test 11 "./sqroot square 7" 9
