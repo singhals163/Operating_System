@@ -30,8 +30,8 @@ fi
 #Testcase 4
 find_actual_size Testcase4/Root
 find_calculated_size Testcase4/Root
-echo "Expected output: $actual_size"
-echo "Your output: $calculated_size"
+# echo "Expected output: $actual_size"
+# echo "Your output: $calculated_size"
 
 if [ $actual_size != "$calculated_size" ]
 then
@@ -43,8 +43,8 @@ fi
 #Testcase 5
 find_actual_size Testcase5/Root
 find_calculated_size Testcase5/Root
-echo "Expected output: $actual_size"
-echo "Your output: $calculated_size"
+# echo "Expected output: $actual_size"
+# echo "Your output: $calculated_size"
 
 if [ $actual_size != "$calculated_size" ]
 then

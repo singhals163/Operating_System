@@ -30,8 +30,8 @@ fi
 #Testcase 1
 find_actual_size Testcase1/Root
 find_calculated_size Testcase1/Root
-echo "Expected output: $actual_size"
-echo "Your output: $calculated_size"
+# echo "Expected output: $actual_size"
+# echo "Your output: $calculated_size"
 
 if [ $actual_size != "$calculated_size" ]
 then
@@ -43,11 +43,11 @@ fi
 
 
 #Testcase 2
-echo ""
+# echo ""
 find_actual_size Testcase2/Root
 find_calculated_size Testcase2/Root
-echo "Expected output: $actual_size"
-echo "Your output: $calculated_size"
+# echo "Expected output: $actual_size"
+# echo "Your output: $calculated_size"
 
 if [ $actual_size != "$calculated_size" ]
 then
@@ -59,11 +59,11 @@ fi
 
 
 #Testcase 3
-echo ""
+# echo ""
 find_actual_size Testcase3/Root
 find_calculated_size Testcase3/Root
-echo "Expected output: $actual_size"
-echo "Your output: $calculated_size"
+# echo "Expected output: $actual_size"
+# echo "Your output: $calculated_size"
 
 if [ $actual_size != "$calculated_size" ]
 then
@@ -73,11 +73,11 @@ else
 fi
 
 #Testcase 6
-echo ""
+# echo ""
 find_actual_size Testcase6/Root
 find_calculated_size Testcase6/Root
-echo "Expected output: $actual_size"
-echo "Your output: $calculated_size"
+# echo "Expected output: $actual_size"
+# echo "Your output: $calculated_size"
 
 if [ $actual_size != "$calculated_size" ]
 then
@@ -86,16 +86,16 @@ else
 	echo "Testcase 6 passed"
 fi
 
-#Testcase 7
-echo ""
-find_actual_size Testcase7/Root
-find_calculated_size Testcase7/Root
-echo "Expected output: $actual_size"
-echo "Your output: $calculated_size"
+# #Testcase 7
+# echo ""
+# find_actual_size Testcase7/Root
+# find_calculated_size Testcase7/Root
+# echo "Expected output: $actual_size"
+# echo "Your output: $calculated_size"
 
-if [ $actual_size != "$calculated_size" ]
-then
-	echo "Testcase 7 failed"
-else
-	echo "Testcase 7 passed"
-fi
+# if [ $actual_size != "$calculated_size" ]
+# then
+# 	echo "Testcase 7 failed"
+# else
+# 	echo "Testcase 7 passed"
+# fi

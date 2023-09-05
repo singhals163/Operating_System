@@ -3,7 +3,6 @@
 read -p "Enter your Roll No: " ROLL_NO
 read -p "Enter your name: " NAME
 
-rm -rf "$ROLL_NO"
 mkdir "$ROLL_NO"
 mkdir -p "$ROLL_NO"/Part1
 mkdir -p "$ROLL_NO"/Part2
@@ -26,4 +25,7 @@ Resources Used :
 2. GeeksForGeeks
 3. Medium articles" > "$ROLL_NO"/declaration
 
-zip -r "$ROLL_NO".zip ./"$ROLL_NO"
+zip -r "$ROLL_NO".zip ./"$ROLL_NO" > trash.txt
+
+rm -r "$ROLL_NO"
+rm trash.txt

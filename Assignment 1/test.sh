@@ -2,10 +2,9 @@
 
 read -p "Enter your roll no: " ROLL_NO
 
-rm -r test
 
 mkdir test
-unzip "$ROLL_NO".zip -d test/
+unzip "$ROLL_NO".zip -d test/ > trash.txt
 cp -r Part* test/
 cp -r test/"$ROLL_NO"/Part1/* test/Part1/ 
 cp -r test/"$ROLL_NO"/Part2/* test/Part2/ 
@@ -24,9 +23,13 @@ cd ../Part2
 
 echo "####### Part3 #######"
 cd ../Part3
-make
+make > trash.txt
 ./Testcases/test1
 ./Testcases/test2
 ./Testcases/test3
 ./Testcases/test4
 ./Testcases/test5
+
+cd ../..
+rm -r test
+rm trash.txt
