@@ -8,132 +8,175 @@
 #include <string.h>
 #include<fcntl.h>
 
+// stores the information about the file
+struct stat statbuf;
+
+int path_size_check(char *pathname) {
+	if(strlen(pathname) > 4096){
+		printf("path size greater than 4096 bytes\n");
+		return 0;
+	} 
+	return 1;
+}
+
+// calculate the size of file
+unsigned long file_size(char *subfile) {
+	if(!path_size_check(subfile)) return 0;
+	unsigned long size = 0;
+	if(stat(subfile, &statbuf) != 0){
+		perror("Unable to execute\n");
+		return 0;
+	}
+	else {
+		size += statbuf.st_size;
+	}
+	return size;
+}
+
+unsigned long subdir_size(char *subdir);
+
+// calculate the size of file/directory that the symlink is pointing to
+// find if it is pointing to a directory or a file, in case of a file, directly add its size
+// else find the size of the subdirectory by calling subdir_size()
+unsigned long link_size(char *symlink) {
+	if(!path_size_check(symlink)) return 0;
+	unsigned long size = 0;
+	if(stat(symlink, &statbuf) != 0){
+		perror("Unable to execute\n");
+		return 0;
+	}
+	int file_type = statbuf.st_mode & __S_IFMT;
+	if(file_type == __S_IFREG) {
+		size += statbuf.st_size;
+	}
+	if(file_type == __S_IFDIR) {
+		size += subdir_size(symlink);
+	}	
+	return size;
+}
+
+// recursively calculate the size of a directory
+unsigned long subdir_size(char *subdir) {
+	if(!path_size_check(subdir)) return 0;
+	DIR *current_dir = opendir(subdir); 
+	if(!current_dir) {
+		// printf("Unable to execute\n");
+		return 0;
+	}
+	struct dirent *child_entity;
+	unsigned long size = 0;
+
+	if(stat(subdir, &statbuf) != 0) {
+		perror("Unable to execute\n");
+	}
+	else size = statbuf.st_size;
+
+	while ((child_entity = readdir(current_dir)) != NULL) {
+
+		// skip the current directory and previous directory
+		if(!strcmp(child_entity->d_name , ".") || !strcmp(child_entity->d_name, "..") ) continue;
+
+		char *child_path = malloc(sizeof(char) * (strlen(subdir) + strlen(child_entity->d_name) + 2));
+		sprintf(child_path, "%s/%s", subdir, child_entity->d_name);
+
+		// if the child is a directory, recursively call the subdir_size() function on the child directory
+		if(child_entity->d_type == DT_DIR) {
+			size += subdir_size(child_path);
+		}
+
+		// if the child is a file, find its size and add it to the size param
+		else if(child_entity->d_type == DT_REG) {
+			size += file_size(child_path);
+		}
+
+		// else if the child is a link, call link_size() to calculate the size of file/directory the symlink is pointing to
+		else if(child_entity->d_type == DT_LNK) {
+			size += link_size(child_path);			
+		}
+
+		free(child_path);
+	}
+	return size;
+}
+
 
 int main(int argc, char *argv[])
 {
+	if(argc != 2){
+		printf("Unable to execute\n");
+		return 0;
+	} 
+	
+	if(!path_size_check(argv[1])) return 0;
+	
 	DIR *current_dir = opendir(argv[1]); 
+	if(!current_dir) {
+		printf("Unable to execute\n");
+		return 0;
+	}
 	struct dirent *child_entity;
-	long int size = 0;                 // stores the size of the curr directory
-	struct stat statbuf;
+	unsigned long size = 0;                 // stores the size of the curr directory
 
 
     if(stat(argv[1], &statbuf) != 0) {
-        perror("statdir\n");
+        printf("Unable to execute\n");
+		return 0;
     }
     else size = statbuf.st_size;
     
     int fd[2];                      //pipe file descriptors
     if(pipe(fd) < 0){
-        perror("pipe");
+        perror("pipe\n");
         exit(-1);
     }
-
-	// FILE *file = fopen("output.out", "a+");
-    // fprintf(file, "Parent dir: %s\n", argv[1]);
-    // fprintf(file, "%s : %ld\n", argv[1], size);
 	while((child_entity = readdir(current_dir)) != NULL) {
 
-        // fprintf(file, "%s\n", child_entity->d_name);
-		
 		// skip the current directory and previous directory
 		if(!strcmp(child_entity->d_name , ".") || !strcmp(child_entity->d_name, "..") ) continue;
 
-		// if the child is a directory, create a new process, pass the path to this directory as the argument
+		char *child_path = malloc(sizeof(char) * (strlen(argv[1]) + strlen(child_entity->d_name) + 2));
+		sprintf(child_path, "%s/%s", argv[1], child_entity->d_name);
+
+		// if the child is a directory, create a new child process and calculate the size of the subdirectory and write the ans in pipe
 		if(child_entity->d_type == DT_DIR) {
 			pid_t pid = fork();
 
 			if(pid < 0) {
-				perror("fork");
+				perror("fork\n");
 			}
 			if(pid==0) {
-                // fprintf(file, "PID: %d\n", pid);
-				char *new_dir = malloc(sizeof(char) * (strlen(argv[1]) + strlen(child_entity->d_name) + 2));
-				sprintf(new_dir, "%s/%s", argv[1], child_entity->d_name);
-				// fprintf(file, "%s\n", new_dir);
-				close(1);
-				dup(fd[1]);
-				close(fd[0]);
-				close(fd[1]);
-				if(execl("./myDU", "./myDU", new_dir, "1", NULL))
-					perror("exec");
-				exit(-1);
+				size = subdir_size(child_path);
+    			write(fd[1], &size, sizeof(size));
+				exit(0);
 			}
+			// wait(NULL);
 		}
 
-		// if the child is a file, find its size and add it to the required param;
+		// if the child is a file, find its size and add it to the size param
 		if(child_entity->d_type == DT_REG) {
-			char *new_file = malloc(sizeof(char) * (strlen(argv[1]) + strlen(child_entity->d_name) + 3));
-			sprintf(new_file, "./%s/%s", argv[1], child_entity->d_name);
-			// fprintf(file, "file : %s\n", new_file);
-			if(stat(new_file, &statbuf) != 0){
-				perror("stat\n");
-			}
-			else {
-				size += statbuf.st_size;
-                // fprintf(file, "%s : %ld\n", new_file, statbuf.st_size);
-			}
-			free(new_file);
+			size += file_size(child_path);
 		}
 
-		// if the child is a symlink, find if it is pointing to a directory or a file, in case of a file, 
-		// directly add its size, else create a new child process to get the size of the directory it is pointing to
+		// else if the child is a link, call link_size() to calculate the size of file/directory the symlink is pointing to
 		else if(child_entity->d_type == DT_LNK) {
-			char *new_link = malloc(sizeof(char) * (strlen(argv[1]) + strlen(child_entity->d_name) + 3));
-			sprintf(new_link, "./%s/%s", argv[1], child_entity->d_name);
-			char pathname[1024];
-			ssize_t path_size = readlink(new_link, pathname, 1024);
-			pathname[path_size] = '\0';
-			// fprintf(file, "####### %s #######\n", pathname);
-			if(stat(new_link, &statbuf) != 0){
-				perror("stat\n");
-			}
-			int file_type = statbuf.st_mode & __S_IFMT;
-			if(file_type == __S_IFREG) {
-				// fprintf(file, "Hi I am a file: %s\n", pathname);
-				size += statbuf.st_size;
-				// fprintf(file, "%s : %ld", pathname, statbuf.st_size);
-			}
-			if(file_type == __S_IFDIR) {
-				// fprintf(file, "Hi I am a directory: %s\n", pathname);
-				pid_t pid = fork();
-
-				if(pid < 0) {
-					perror("fork");
-				}
-				if(pid==0) {
-					// fprintf(file, "PID: %d\n", pid);
-					char *new_dir = malloc(sizeof(char) * (strlen(argv[1]) + strlen(child_entity->d_name) + 2));
-					sprintf(new_dir, "%s/%s", argv[1], child_entity->d_name);
-					// fprintf(file, "%s\n", new_dir);
-					close(1);
-					dup(fd[1]);
-					close(fd[0]);
-					close(fd[1]);
-					if(execl("./myDU", "./myDU", new_dir, "1", NULL))
-						perror("exec");
-					exit(-1);
-				}
-			}	
+			size += link_size(child_path);
 		}
+
+		free(child_path);
 	}
     wait(NULL);
     close(fd[1]);
-    long int temp = 0;
+    unsigned long temp = 0;
     int bufferSize = 1024;
-    long int buffer[bufferSize];
+    unsigned long buffer[bufferSize];
     int byteRead;
     while ((byteRead = read(fd[0], buffer, bufferSize))>0) {
         int nums = byteRead/sizeof(temp);
         for (size_t i = 0; i < nums; i++)
         {
             size += buffer[i];
-            // fprintf(file, "%s : temp : %ld\n", argv[1], buffer[i]);
         }
-        
     }
     close(fd[0]);
-    if(argc == 2) printf("%ld\n", size);
-    else
-    write(1, &size, sizeof(size));
-    // fprintf(file, "------\n Total size : %s : %ld \n----------\n", argv[1], size);
+	printf("%lu\n", size);
 }

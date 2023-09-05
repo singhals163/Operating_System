@@ -5,7 +5,7 @@ calculated_size=0
 
 find_actual_size()
 {
-	output=$(du -bs -L $1)
+	output=$(du -bs $1)
 	actual_size=$(echo $output | cut -d ' ' -f 1)
 }
 
@@ -43,9 +43,9 @@ fi
 
 
 #Testcase 2
+echo ""
 find_actual_size Testcase2/Root
 find_calculated_size Testcase2/Root
-echo ""
 echo "Expected output: $actual_size"
 echo "Your output: $calculated_size"
 
@@ -59,9 +59,9 @@ fi
 
 
 #Testcase 3
+echo ""
 find_actual_size Testcase3/Root
 find_calculated_size Testcase3/Root
-echo ""
 echo "Expected output: $actual_size"
 echo "Your output: $calculated_size"
 
@@ -72,16 +72,30 @@ else
 	echo "Testcase 3 passed"
 fi
 
-#Testcase 4
-find_actual_size Testcase4
-find_calculated_size Testcase4
+#Testcase 6
 echo ""
+find_actual_size Testcase6/Root
+find_calculated_size Testcase6/Root
 echo "Expected output: $actual_size"
 echo "Your output: $calculated_size"
 
 if [ $actual_size != "$calculated_size" ]
 then
-	echo "Testcase 4 failed"
+	echo "Testcase 6 failed"
 else
-	echo "Testcase 4 passed"
+	echo "Testcase 6 passed"
+fi
+
+#Testcase 7
+echo ""
+find_actual_size Testcase7/Root
+find_calculated_size Testcase7/Root
+echo "Expected output: $actual_size"
+echo "Your output: $calculated_size"
+
+if [ $actual_size != "$calculated_size" ]
+then
+	echo "Testcase 7 failed"
+else
+	echo "Testcase 7 passed"
 fi
