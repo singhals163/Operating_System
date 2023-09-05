@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <sys/mman.h>
 
+#define __PAGE_SIZE 4*1024*1024
 #define MEM_ALLOC(curr) (void*)((char*)curr + 8);
 #define NEXT_BLOCK(curr) (Block*)((char*)curr+curr->size)
 
 typedef struct Block
 {
-	int size;
+	unsigned long size;
 	struct Block *next;
 	struct Block *prev;
 } Block;
@@ -14,7 +15,7 @@ typedef struct Block
 Block start = {24, NULL, NULL};
 Block *head = &start;
 
-
+// removoe the current block from the free list
 void mem_remove(Block *curr) {
 	Block *prev = curr->prev;
 	prev->next = curr->next;
@@ -22,6 +23,7 @@ void mem_remove(Block *curr) {
 	return;
 }
 
+// add the block passed as parameter to the start of free list
 void mem_add(Block *curr) {
 	curr->next = head->next;
 	curr->prev = head;
@@ -30,7 +32,8 @@ void mem_add(Block *curr) {
 	return;
 }
 
-Block *mem_split(Block *curr, int size) {
+// split the current block into two parts and return the newly created block
+Block *mem_split(Block *curr, unsigned long size) {
 	Block *new_block = (Block*)((char*)curr + size);
 	new_block->size = curr->size - size;
 	new_block->next = NULL;
@@ -38,6 +41,7 @@ Block *mem_split(Block *curr, int size) {
 	return new_block;
 }
 
+// find the block in the free list which lies just before the curr block
 Block *find_first(Block *curr) {
 	Block *temp = head->next;
 	while(temp) {
@@ -47,6 +51,7 @@ Block *find_first(Block *curr) {
 	return NULL;
 }
 
+// find the block in the free list which lies just after the curr block
 Block *find_second(Block *curr) {
 	Block *temp = head->next;
 	Block *second = NEXT_BLOCK(curr);
@@ -59,10 +64,10 @@ Block *find_second(Block *curr) {
 
 void *memalloc(unsigned long size) 
 {
-	if(size == 0) return NULL;
+	if(size <= 0) return NULL;
 	
-	int required_size = ((size + 7)/8 + 1)*8;
-	// printf("memalloc() called\n");
+	unsigned long required_size = ((size + 7)/8 + 1)*8;
+	if (required_size < 24) required_size = 24;
 	Block *curr = head->next;
 	while(curr) {
 		if(curr->size >= required_size) {
@@ -81,7 +86,7 @@ void *memalloc(unsigned long size)
 		curr = curr->next;
 	}
 	// allocate new memory and link it to the head
-	int required_page_size = ((size+7)/(4*1024) + 1) * (4*1024);
+	unsigned long required_page_size = ((size+7)/(__PAGE_SIZE) + 1) * (__PAGE_SIZE);
 	Block *new_memory = (Block *)mmap(NULL, required_page_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 	if(new_memory == MAP_FAILED) {
 		perror("mmap failed\n");
@@ -92,7 +97,8 @@ void *memalloc(unsigned long size)
 	new_memory->next = NULL;
 	new_memory->prev = NULL;
 	if(required_page_size >= 24 + required_size) {
-		mem_add(mem_split((Block*)new_memory, required_size));
+		mem_add(mem_split(new_memory, required_size));
+		new_memory->size = required_size;
 	}
 
 	return MEM_ALLOC(new_memory);
@@ -101,8 +107,8 @@ void *memalloc(unsigned long size)
 int memfree(void *ptr)
 {
 	// printf("memfree() called\n");
+	if(!ptr) return -1;
 	Block *curr = (Block*)((char*)ptr - 8);
-	// printf("size of block: %d\n", curr->size);
 	curr->next = NULL;
 	curr->prev = NULL;
 	Block *first = find_first(curr);
@@ -114,9 +120,9 @@ int memfree(void *ptr)
 	}
 	else if(first == NULL) {
 		// only first is NULL
-		first->size = first->size + second->size;
-		mem_add(curr);
+		curr->size = curr->size + second->size;
 		mem_remove(second);
+		mem_add(curr);
 	}
 	else if(second == NULL) {
 		// only second is NULL
