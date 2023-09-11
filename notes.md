@@ -16,6 +16,8 @@ The following markdown contains some of the important tasks and terms that I cam
         int x[10];
         printf("%d\n", sizeof(x)); // returns 40
 - In general, when you are done with a chunk of memory, you should make sure to free it. Note that using a garbage-collected language doesn’t help here: if you still have a reference to some chunk of memory, no garbage collector will ever free it, and thus memory leaks remain a problem even in more modern languages.
+
+#### Chapter 6: MECHANISM: LIMITED DIRECT EXECUTION
 - The process then completes its work, and returns from
 main(); this usually will return into some stub code which will properly
 exit the program (say, by calling the exit() system call, which traps into
