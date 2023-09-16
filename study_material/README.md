@@ -278,13 +278,56 @@ fork() is called, please see the man pages.
 <!-- Week 4 --> 
 ### Week 4: Virtual Memory, Address Space
 #### Lecture Notes
-- 
+[Imp Resource](https://www.scaler.com/topics/c/memory-layout-in-c/)
+- A typical executable file contains code and statically allocated data
+- **Statically allocated: global and static variables**
+- **Code segment size and initialized data segment size is fixed (at exe load)**
+- End of uninitialized data segment (a.k.a. BSS) can be adjusted dynamically
+- Heap allocation can be discontinuous, special system calls like mmap( ) provide the facility
+- Stack grows automatically based on the run-time requirements, no explicit system calls
+- **brk()**
 
+        int brk(void *address);
+  - If possible, set the end of uninitialized data segment at address
+  - Can be used by C library to allocate/free memory dynamically 
+- **sbrk()**
+
+        void * sbrk (long size);
+  - Increments the program’s data space by size bytes and returns **the old value of the end of bss**
+  - sbrk(0) returns the current location of BSS
+- Finding segments (At program load)
+  - ***etext*** :  end of text segment
+  - ***edata*** :  end of initialized data segment
+  - sbrk(0) returns the current location of BSS
+  - ***end*** :  BSS
+ > - Linux provides the information in /proc/pid/maps
+- **mmap(): discontiguous allocation**
+  - Allows to allocate address space
+    - **with different protections (READ/WRITE/EXECUTE)**
+    - at a particular address provided by the user
+  - Example: Allocate 4096 bytes with READ+WRITE permission
+        
+        ptr = mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0); 
+>- What is the structure of PCB memory state, i.e. how is the memory state maintained in the PCB to know about the processes adrress space allocation pattern? <br>
+>  Answer in slides: Through a circularly linked list
+- fork() copies the parent memory state to the child
+- exec() reinitializes the memory state of the process as per the new executable
 #### OSTEP
 #### Chapter 13. THE ABSTRACTION: ADDRESS SPACES
+- Three major goals of OS in achieving virtualization in memory:
+  - Transparency: The OS should implement virtual memory in a way that is invisible to the running program.
+  - Efficiency: The OS should strive to make the virtualization as efficient as possible, both in terms of time (i.e., not making programs run much more slowly) and space (i.e., not using too much memory for structures needed to support virtualization)
+  - Protection: The OS should make sure to protect processes from one another as well as the OS itself from processes.
 - **TLBs**: A translation lookaside buffer (TLB) is a memory cache that stores the recent translations of virtual memory to physical memory. It is used to reduce the time taken to access a user memory location. It can be called an address-translation cache.
 
 #### Chapter 14: INTERLUDE: MEMORY API
+- In the program below, both the allocation of memory on the stack as well as heap is done, the variable a is declared on the stack, whereas memory is allocated on the heap, the pointer to which is stored as x
+
+        void func() {
+                int *x = (int *) malloc(sizeof(int));
+                ...
+        }
+- argument of malloc defines how many bytes you require        
 - **sizeof()**: The ***sizeof()*** is considered as an ***operator*** rather than a function because it assigns a value at the **compile-time** whereas a **function** would allocate the value at **run-time**
 -
         int *x = malloc(10 * sizeof(int));
@@ -292,7 +335,20 @@ fork() is called, please see the man pages.
 
         int x[10];
         printf("%d\n", sizeof(x)); // returns 40
+- If while allocating dynamic memory for a string, you forget to add 1 for the end of string character, your program may still work fine, because the malloc may have allocated one extra byte, however this is not the case always, and thus each program that runs correctly may not be correct always
+- Where is the memory of src allocated, in heap or stack?
+
+        char *src = "hello";
+        char *dst; // oops! unallocated
+        strcpy(dst, src); // segfault and die
 - In general, when you are done with a chunk of memory, you should make sure to free it. Note that using a garbage-collected language doesn’t help here: if you still have a reference to some chunk of memory, no garbage collector will ever free it, and thus memory leaks remain a problem even in more modern languages.
+- **mmap()** can create an anonymous memory region within your program — a region which is not associated with any particular file but rather with **swap** space, something we’ll discuss in detail later on in virtual memory
+#### Topics to be covered:
+- [Imp Resource](https://www.scaler.com/topics/c/memory-layout-in-c/)
+- Where are the variables declared in the main function stored? stack or unitialised/initialised data
+- How does the compiler returns the value while returning from a function call?
+- Read Ch 15 if you've got time
+
 
 #### Chapter 6: MECHANISM: LIMITED DIRECT EXECUTION
 - The process then completes its work, and returns from
