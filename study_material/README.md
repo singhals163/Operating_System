@@ -350,6 +350,24 @@ fork() is called, please see the man pages.
 - Read Ch 15 if you've got time
 
 
+
+
+<!-- Week 5 --> 
+### Week 5: Limited Direct Access
+#### Lecture Notes
+- Can the OS enforce limits to an executing process by itself?
+  - No, the OS can not enforce limits by itself and still achieve efficiency
+  - OS requires support from hardware!
+- What kind of support?
+  - **Privilage Levels**
+    - CPU can execute in two modes: user-mode and kernel-mode
+    - Some operations are allowed only from kernel-mode (privileged OPs)
+    - If executed from user mode, hardware will notify the OS by raising a fault/trap
+    - From user-mode, privilege level of CPU can not be changed directly
+    - The hardware provides entry instructions from the user-mode which causes a mode switch
+    - The OS can define the handler for different entry gates
+
+
 #### Chapter 6: MECHANISM: LIMITED DIRECT EXECUTION
 - The process then completes its work, and returns from
 main(); this usually will return into some stub code which will properly
