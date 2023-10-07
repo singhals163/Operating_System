@@ -160,9 +160,104 @@ int sys_create_trace_buffer(struct exec_context *current, int mode)
 ///////////////////////////////////////////////////////////////////////////
 
 
+// int param_numbers(u64 syscall_num) {
+// 	if(syscall_num == SYSCALL_EXIT) return 0;
+// 	if(syscall_num == SYSCALL_GETPID) return 0;
+// 	if(syscall_num == SYSCALL_GETPPID) return 0;
+// 	if(syscall_num == SYSCALL_FORK) return 0;
+// 	if(syscall_num == SYSCALL_CFORK) return 0;
+// 	if(syscall_num == SYSCALL_VFORK) return 0;
+// 	if(syscall_num == SYSCALL_PHYS_INFO) return 0;
+// 	if(syscall_num == SYSCALL_STATS) return 0;
+// 	if(syscall_num == SYSCALL_GET_USER_P) return 0;
+// 	if(syscall_num == SYSCALL_GET_COW_F) return 0;
+// 	if(syscall_num == SYSCALL_CONFIGURE) return 1;
+// 	if(syscall_num == SYSCALL_DUMP_PTT) return 1;
+// 	if(syscall_num == SYSCALL_SIGNAL) return 1;
+// 	if(syscall_num == SYSCALL_SLEEP) return 1;
+// 	if(syscall_num == SYSCALL_EXPAND) return 2;
+// 	if(syscall_num == SYSCALL_CLONE) return 2;
+// 	if(syscall_num == SYSCALL_MMAP) return 4;
+// 	if(syscall_num == SYSCALL_MUNMAP) return 2;
+// 	if(syscall_num == SYSCALL_MPROTECT) return 3;
+// 	if(syscall_num == SYSCALL_PMAP) return 1;
+// // 	// param_numbers[SYSCALL_OPEN] = 1; How to deal with open which have multiple implementation
+// 	if(syscall_num == SYSCALL_OPEN) return 2;
+// 	if(syscall_num == SYSCALL_READ) return 3;
+// 	if(syscall_num == SYSCALL_WRITE) return 3;
+// 	if(syscall_num == SYSCALL_DUP) return 1;
+// 	if(syscall_num == SYSCALL_DUP2) return 2;
+// 	if(syscall_num == SYSCALL_CLOSE) return 1;
+// 	if(syscall_num == SYSCALL_LSEEK) return 3;
+// 	if(syscall_num == SYSCALL_FTRACE) return 4;
+// 	if(syscall_num == SYSCALL_TRACE_BUFFER) return 1;
+// 	if(syscall_num == SYSCALL_START_STRACE) return 2;
+// 	if(syscall_num == SYSCALL_END_STRACE) return 0;
+// 	if(syscall_num == SYSCALL_READ_STRACE) return 3;
+// 	if(syscall_num == SYSCALL_READ_FTRACE) return 3;
+// 	if(syscall_num == SYSCALL_STRACE) return 2;
+// 	return 0;
+// }
+
+// int write_strace_buffer(u64 syscall_num, u64 param1, u64 param2, u64 param3, u64 param4) {
+// 	// how to handle open syscall
+// 	struct exec_context *ctx = get_current_ctx();
+// 	struct strace_head *head = ctx->st_md_base;
+// 	struct trace_buffer_info *strace_buf = ctx->files[head->strace_fd]->trace_buffer;
+// 	int params = param_numbers(syscall_num);
+// 	if(strace_buf->size < BYTES_WRITTEN(params)) {
+// 		return -EINVAL;
+// 	}
+// 	u64 *start = (u64*)(strace_buf->trace_buffer+strace_buf->write);
+// 	*start = syscall_num;
+// 	if(params >= 1) {
+// 		*(start + 1) = param1;
+// 	}
+// 	if(params >= 2) {
+// 		*(start + 2) = param2;
+// 	}
+// 	if(params >= 3) {
+// 		*(start + 3) = param3;
+// 	}
+// 	if(params >= 4) {
+// 		*(start + 4) = param4;
+// 	}
+// 	strace_buf->write = (strace_buf->write + BYTES_WRITTEN(params)) % TRACE_BUFFER_MAX_SIZE;
+// 	strace_buf->size = strace_buf->size - BYTES_WRITTEN(params);
+// 	return BYTES_WRITTEN(params);
+// }
+
 int perform_tracing(u64 syscall_num, u64 param1, u64 param2, u64 param3, u64 param4)
 {
-    return 0;
+	// // how to handle open syscall
+	// struct exec_context *ctx = get_current_ctx();
+	// int bytes_written = 0;
+	// int params = param_numbers(syscall_num);
+	// if(ctx->st_md_base->tracing_mode == FULL_TRACING) {
+	// 	// store the information directly
+	// 	bytes_written = write_strace_buffer(syscall_num, param1, param2, param3, param4);
+	// 	if(bytes_written != 8*(params + 1)) {
+	// 		return -EINVAL;
+	// 	}
+	// }
+	// else if(ctx->st_md_base->tracing_mode == FILTERED_TRACING) {
+	// 	// store only if syscall_num is present in the list of traced system calls
+	// 	struct strace_info *allowed_syscalls = ctx->st_md_base->next;
+	// 	while(allowed_syscalls) {
+	// 		if(allowed_syscalls->syscall_num == syscall_num) {
+	// 			// write the code to store the information here
+
+	// 			bytes_written = write_strace_buffer(syscall_num, param1, param2, param3, param4);
+	// 			if(bytes_written != 8*(params + 1)) {
+	// 				return -EINVAL;
+	// 			}
+	// 			break;
+	// 		}
+	// 		allowed_syscalls = allowed_syscalls->next;
+	// 	}
+	// }
+    // return bytes_written;
+	return 0;
 }
 
 
@@ -206,22 +301,24 @@ int sys_strace(struct exec_context *current, int syscall_num, int action)
 
 int sys_read_strace(struct file *filep, char *buff, u64 count)
 {
-	int bytes_read = 0;
-	int bytes;
-	while(count--) {
-		bytes = trace_buffer_read(filep, buff+bytes_read, 8);
-		if(bytes != 8) {
-			return -EINVAL;
-		}
-		int *syscall_num = (int*)(buff+bytes_read);
-		bytes_read += bytes;
-		bytes = trace_buffer_read(filep, buff+bytes_read, 8*(param_numbers[*syscall_num]));
-		if(bytes != 8*(param_numbers[*syscall_num])) {
-			return -EINVAL;
-		}
-		bytes_read += bytes;
-	}
-	return bytes_read;
+ 	// int bytes_read = 0;
+	// int bytes;
+	// while(count--) {
+	// 	bytes = trace_buffer_read(filep, buff+bytes_read, 8);
+	// 	if(bytes != 8) {
+	// 		return -EINVAL;
+	// 	}
+	// 	int *syscall_num = (int*)(buff+bytes_read);
+	// 	bytes_read += bytes;
+	// 	int params = param_numbers(*syscall_num);
+	// 	bytes = trace_buffer_read(filep, buff+bytes_read, 8*(params));
+	// 	if(bytes != 8*(params)) {
+	// 		return -EINVAL;
+	// 	}
+	// 	bytes_read += bytes;
+	// }
+	// return bytes_read;
+	return 0;
 }
 
 int sys_start_strace(struct exec_context *current, int fd, int tracing_mode)
