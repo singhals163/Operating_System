@@ -168,16 +168,76 @@ int perform_tracing(u64 syscall_num, u64 param1, u64 param2, u64 param3, u64 par
 
 int sys_strace(struct exec_context *current, int syscall_num, int action)
 {
+	struct strace_head *st_head = current->st_md_base;
+	if(action == ADD_STRACE) {
+		// add syscall num to the list of the syscalls being traced
+		// check if the asked number was already present in the strace list
+		struct strace_info *new_syscall = (struct strace_info*)os_alloc(sizeof(struct strace_info));
+		if(!new_syscall) {
+			return -EINVAL;
+		}
+		new_syscall->syscall_num = syscall_num;
+		new_syscall->next = NULL;
+		st_head->last->next = new_syscall;
+		st_head->last = new_syscall;
+	}
+	else if(action == REMOVE_STRACE) {
+		struct strace_info *current_syscall = st_head->next;
+		if(current_syscall && current_syscall->syscall_num == syscall_num) {
+			st_head->next = current_syscall->next;
+			os_free(current_syscall, sizeof(struct strace_info));
+		}
+		else {
+			struct strace_info *prev_syscall = st_head->next;
+			while(current_syscall) {
+				if(current_syscall->syscall_num == syscall_num) {
+					prev_syscall->next = current_syscall->next;
+					os_free(current_syscall, sizeof(struct strace_info));
+					current_syscall = prev_syscall;
+				}
+				prev_syscall = current_syscall;
+				current_syscall = current_syscall->next;
+			}
+		}
+	}
+	else return -EINVAL;
 	return 0;
 }
 
 int sys_read_strace(struct file *filep, char *buff, u64 count)
 {
-	return 0;
+	int bytes_read = 0;
+	int bytes;
+	while(count--) {
+		bytes = trace_buffer_read(filep, buff+bytes_read, 8);
+		if(bytes != 8) {
+			return -EINVAL;
+		}
+		int *syscall_num = (int*)(buff+bytes_read);
+		bytes_read += bytes;
+		bytes = trace_buffer_read(filep, buff+bytes_read, 8*(param_numbers[*syscall_num]));
+		if(bytes != 8*(param_numbers[*syscall_num])) {
+			return -EINVAL;
+		}
+		bytes_read += bytes;
+	}
+	return bytes_read;
 }
 
 int sys_start_strace(struct exec_context *current, int fd, int tracing_mode)
 {
+	struct strace_head *st_head = (struct strace_head*)os_alloc(sizeof(struct strace_head));
+	if(!st_head) {
+		return -EINVAL;
+	}
+	st_head->count = 0;
+	st_head->is_traced = 1;
+	st_head->strace_fd = fd;
+	st_head->tracing_mode = tracing_mode;
+	st_head->next = NULL;
+	st_head->last = NULL;
+	current->st_md_base = st_head;
+	// initialise_syscall_params();
 	return 0;
 }
 
