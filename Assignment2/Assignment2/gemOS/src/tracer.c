@@ -6,6 +6,8 @@
 #include<tracer.h>
 
 
+#define BYTES_WRITTEN(x) 8*(x+1)
+
 ///////////////////////////////////////////////////////////////////////////
 //// 		Start of Trace buffer functionality 		      /////
 ///////////////////////////////////////////////////////////////////////////
@@ -181,6 +183,18 @@ int sys_start_strace(struct exec_context *current, int fd, int tracing_mode)
 
 int sys_end_strace(struct exec_context *current)
 {
+	// implement error handling
+	struct strace_info *curr_strace = current->st_md_base->next;
+	struct strace_info *temp_strace = current->st_md_base->next;
+
+	while(curr_strace) {
+		temp_strace = curr_strace->next;
+		os_free(curr_strace, sizeof(struct strace_info));
+		curr_strace = temp_strace;
+	}
+
+	os_free(current->st_md_base, sizeof(struct strace_head));
+	// point current->st_md_base to NULL
 	return 0;
 }
 
