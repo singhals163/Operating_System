@@ -16,6 +16,7 @@ int main (u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5) {
 	end_strace();
 	
 	int strace_ret = read_strace(strace_fd, strace_buff, 2);
+	printf("user space: strace size read = %d\n", strace_ret);
 	if(strace_ret != 32){
 		printf("2.Test case failed\n");
 		return -1;

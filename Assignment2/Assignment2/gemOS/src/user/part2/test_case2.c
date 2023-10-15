@@ -47,7 +47,7 @@ int main (u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5) {
         }
 	sleep(10);
 	getpid();
-        end_strace();
+        end_strace();   
 
         int strace_ret = read_strace(strace_fd, strace_buff, 5);
         if(strace_ret != 40){

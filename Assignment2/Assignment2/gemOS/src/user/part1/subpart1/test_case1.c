@@ -3,6 +3,7 @@
 int main (u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5) {
 
         int fd = create_trace_buffer(O_RDWR);
+	printf("trace buffer: %d\n", fd);
 	char buff[10];
 	char buff2[10];
 
@@ -11,7 +12,7 @@ int main (u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5) {
 	}
 
 	int ret = write(fd, buff, 10);
-//	printf("ret value from write: %d\n", ret);
+	printf("ret value from write: %d\n", ret);
 	if(ret != 10){
 		printf("1.Test case failed\n");
 		return -1;
