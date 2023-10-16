@@ -2,13 +2,16 @@
 
 static int func2(int a)
 {
+    // printf("Hmm, calling function 2\n");
    return (2*a);
 }
 
 static int func1(int a, int b)
 {
+    // printf("Hmm, calling function 1\n");
    int ret = 0;
    ret = func2(a+b);
+    // printf("Hmm, calling function 1 was successful\n");
    return ret;
 }
 int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
@@ -52,8 +55,8 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
 	printf("4. Test case failed\n");
 	return -1;
     }
-
     func1(5,10);
+    // printf("Hmm, function return was successful\n");
 
     int read_ret = read_ftrace(ftrace_fd, ftrace_buff, 4);
     /*for(int i = 0; i<(read_ret/8); i++){
@@ -64,7 +67,10 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
 	printf("5. Test case failed\n");
 	return -1;
     }
-
+    // for(int i = 0; i < 5; i++) {
+    //     printf("%d ", (u64 *)ftrace_buff[i]);
+    // }
+    // printf("\n");
     if((u64*)(((u64*)ftrace_buff)[0]) != (u64*)(&func1))
     { 
 	printf("6. Test case failed\n");

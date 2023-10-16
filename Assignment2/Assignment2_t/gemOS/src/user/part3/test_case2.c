@@ -17,7 +17,7 @@ static int func1(int a, int b)
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
 {
-    printf("P3T2\n");
+    // printf("P3T2\n");
     int ret = 0;
     int ftrace_fd = 0;
     u64 ftrace_buff[512];
@@ -61,10 +61,10 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
     func1(5,10);
 
     int read_ret = read_ftrace(ftrace_fd, ftrace_buff, 4);
-    /*for(int i = 0; i<(read_ret/8); i++){
-	printf("ftrace_buff[%d] : %x\n", i*8, ftrace_buff[i]);
-    }
-    */
+    // for(int i = 0; i<(read_ret/8); i++){
+	// printf("ftrace_buff[%d] : %x\n", i*8, ftrace_buff[i]);
+    // }
+    
 
     if(read_ret != 80)
     { 
