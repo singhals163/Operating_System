@@ -12,12 +12,45 @@
 #define ACCESSIBLE_PAGE(pte) pte & 1
 #define BIT_MASK_9(addr, pos) ((addr & ((((u64)1)<<pos) - (((u64)1)<<(pos-9))))>>(pos-9))
 
+static inline void invlpg(unsigned long addr) {
+    asm volatile("invlpg (%0)" ::"r" (addr) : "memory");
+}
+
 int valid_prot(int prot) {
     if(prot == PROT_READ || prot == PROT_READ | PROT_WRITE) {
         return 1;
     }
     return 0;
 }
+
+u64 *page_table_walk(struct exec_context *current, u64 addr) {
+    
+    u64 *current_page = (u64 *)osmap(current->pgd);
+    u64 *pgd = (u64 *)(current_page + (((addr<<16)>>16)>>39));
+    if(!(ACCESSIBLE_PAGE(*pgd))) {
+        return NULL; 
+    }
+    
+    current_page = (u64 *)osmap(((*pgd)>>12));
+    u64 *pud = (u64 *)(current_page + (((addr<<25)>>25)>>30));
+    if(!(ACCESSIBLE_PAGE(*pud))) {
+        return NULL;
+    }
+    
+    current_page = (u64 *)osmap((*pud)>>12);
+    u64 *pmd = (u64 *)(current_page + (((addr<<34)>>34)>>21));
+    if(!(ACCESSIBLE_PAGE(*pmd))) {
+        return NULL;
+    }
+
+    current_page = (u64 *)osmap((*pmd)>>12);
+    u64 *pte = (u64 *)(current_page + (((addr<<43)>>43)>>12));
+    if(!(ACCESSIBLE_PAGE(*pte))) {
+        return NULL;
+    }
+    return pte;
+}
+
 long allocate_dummy_vm_area(struct exec_context *curr) {
     // printk("dummy node allocation started\n");
     struct vm_area *dummy = (struct vm_area*)os_alloc(sizeof(struct vm_area));
@@ -68,6 +101,32 @@ long create_new_mapping(struct vm_area* dummy, struct vm_area* curr, int length,
 /**
  * mprotect System call Implementation.
  */
+
+long change_prot_page_frame(u64 *pte, u64 addr, int prot){
+    u64 pfn = ((u64)(*pte)) >> 12;
+    // if((prot & PROT_WRITE) == ((*pte) & (1<<3))) {
+    //     return 0;
+    // }
+    printk("Old PTE value: %x\n", *pte);
+    (*pte) = (*pte) ^ (1<<3);
+    printk("New PTE value: %x\n", *pte);
+    invlpg(addr);
+    return 0;
+}
+
+long change_prot_physical_pages(struct exec_context *current, u64 addr, int length, int prot) {
+    length = REQUESTED_SIZE(length);
+    u64 current_addr = addr;
+    while(current_addr < addr + length) {
+        u64 *pte = page_table_walk(current, current_addr);
+        if(pte) {
+            change_prot_page_frame(pte, addr, prot);
+        }
+        current_addr = current_addr + PAGE_SIZE;
+    }
+    return 0;
+}
+
 long change_prot(struct exec_context *current, u64 addr, int length, int prot) {
     struct vm_area *curr = current->vm_area;
     struct vm_area *prev = curr;
@@ -78,6 +137,7 @@ long change_prot(struct exec_context *current, u64 addr, int length, int prot) {
         } 
         if(curr->vm_start < addr && curr->vm_end > addr + REQUESTED_SIZE(length)) {
             // remove partial space from middle
+            change_prot_physical_pages(current, addr, length, prot);
             if(create_new_address_mapping(current->vm_area, curr, addr + REQUESTED_SIZE(length), curr->vm_end - addr - REQUESTED_SIZE(length), curr->access_flags) == 0) {
                 return -EINVAL;
             }
@@ -88,10 +148,11 @@ long change_prot(struct exec_context *current, u64 addr, int length, int prot) {
             // curr = curr->vm_next;
             // curr = curr->vm_next;
         }
-        else if(curr->  vm_start < addr && curr->vm_end > addr) {
+        else if(curr->vm_start < addr && curr->vm_end > addr) {
             // remove partial space from end
             // if(curr->vm_next && curr->vm_next->vm_start == curr->vm_end)
-            if(create_new_address_mapping(current->vm_area, curr, addr, REQUESTED_SIZE(length), prot) == 0) {
+            change_prot_physical_pages(current, addr, curr->vm_end - addr, prot);
+            if(create_new_address_mapping(current->vm_area, curr, addr, curr->vm_end - addr, prot) == 0) {
                 return -EINVAL;
             }
 
@@ -101,19 +162,39 @@ long change_prot(struct exec_context *current, u64 addr, int length, int prot) {
         }
         else if(curr->vm_start >= addr && curr->vm_end <= addr + REQUESTED_SIZE(length)) {
             // remove full space
+            change_prot_physical_pages(current, curr->vm_start, curr->vm_end - curr->vm_start, prot);
             curr->access_flags = prot;
 
         }
         else if(curr->vm_start <= addr + REQUESTED_SIZE(length) - 1 && curr->vm_end > addr + REQUESTED_SIZE(length)) {
             // remove partial space from beginning
+            change_prot_physical_pages(current, curr->vm_start, addr + REQUESTED_SIZE(length) - curr->vm_start, prot);
             if(create_new_address_mapping(current->vm_area, curr, addr + REQUESTED_SIZE(length), curr->vm_end - (addr + REQUESTED_SIZE(length)), curr->access_flags) == 0) {
                 return -EINVAL;
             }
-            curr->vm_end = addr ;
+            curr->vm_end = addr + REQUESTED_SIZE(length);
             curr->access_flags = prot;
         }
         prev = curr;
         curr = curr->vm_next;
+    }
+    return 0;
+}
+
+long coalesce_adjacent_blocks(struct vm_area *curr) {
+    if(!curr) {
+        return -EINVAL;
+    }
+    struct vm_area *temp;
+    while(curr) {
+        if(curr->vm_next && curr->vm_next->vm_start == curr->vm_end && curr->access_flags == curr->vm_next->access_flags) {
+            curr->vm_end = curr->vm_next->vm_end;
+            temp = curr->vm_next;
+            curr->vm_next = curr->vm_next->vm_next;
+            stats->num_vm_area -= 1;
+            os_free(temp, sizeof(struct vm_area));
+        }
+        else curr = curr->vm_next;
     }
     return 0;
 }
@@ -126,7 +207,10 @@ long vm_area_mprotect(struct exec_context *current, u64 addr, int length, int pr
     if(!valid_prot(prot)) {
         return -EINVAL;
     }
-    return change_prot(current, addr, length, prot);
+    if(change_prot(current, addr, length, prot) != 0) {
+        return -EINVAL;
+    }
+    return coalesce_adjacent_blocks(current->vm_area);
 }
 
 /**
@@ -268,7 +352,30 @@ long vm_area_map(struct exec_context *current, u64 addr, int length, int prot, i
  * munmap system call implemenations
  */
 
-long unallocate_physical_pages(struct exec_context )
+
+long unallocate_page_frame(u64 *pte, u64 addr){
+    u64 pfn = ((u64)(*pte)) >> 12;
+    put_pfn(pfn);
+    if(get_pfn_refcount(pfn) == 0) {
+        os_pfn_free(USER_REG, pfn);
+    }
+    *pte = 0;
+    invlpg(addr);
+    return 0;
+}
+
+long unallocate_physical_pages(struct exec_context *current, u64 addr, int length) {
+    length = REQUESTED_SIZE(length);
+    u64 current_addr = addr;
+    while(current_addr < addr + length) {
+        u64 *pte = page_table_walk(current, current_addr);
+        if(pte) {
+            unallocate_page_frame(pte, addr);
+        }
+        current_addr = current_addr + PAGE_SIZE;
+    }
+    return 0;
+}
 
 long unmap_vm(struct exec_context *current, u64 addr, int length) {
     struct vm_area *curr = current->vm_area;
@@ -278,7 +385,7 @@ long unmap_vm(struct exec_context *current, u64 addr, int length) {
         if(curr->vm_start < addr && curr->vm_end > addr + REQUESTED_SIZE(length)) {
             // remove partial space from middle
             // printk("1. CALLED unmap_vm\n");
-            unallocate_physical_pages(current, )
+            unallocate_physical_pages(current, addr, length);
             if(create_new_address_mapping(current->vm_area, curr, addr + REQUESTED_SIZE(length), curr->vm_end - addr - REQUESTED_SIZE(length), curr->access_flags) == 0) {
                 printk("WTF!! You stuck here??\n");
                 return -EINVAL;
@@ -288,12 +395,14 @@ long unmap_vm(struct exec_context *current, u64 addr, int length) {
         else if(curr->vm_start < addr && curr->vm_end > addr) {
             // remove partial space from end
             // printk("2. CALLED unmap_vm\n");
+            unallocate_physical_pages(current, addr, curr->vm_end - addr);
             curr->vm_end = addr;
         }
         else if(curr->vm_start >= addr && curr->vm_end <= addr + REQUESTED_SIZE(length)) {
             // remove full space
             // printk("3. CALLED unmap_vm\n");
             // printk("REMOVING WHOLE MAPPING | start: %x | end: %x | addr: %x | addr + size: %x\n", curr->vm_start, curr->vm_end, addr, addr + REQUESTED_SIZE(length) - 1);
+            unallocate_physical_pages(current, curr->vm_start, curr->vm_end - curr->vm_start);
             prev->vm_next = curr->vm_next;
             os_free(curr, sizeof(struct vm_area));
             stats->num_vm_area -= 1;
@@ -304,6 +413,7 @@ long unmap_vm(struct exec_context *current, u64 addr, int length) {
         else if(curr->vm_start <= addr + REQUESTED_SIZE(length) - 1 && curr->vm_end > addr + REQUESTED_SIZE(length)) {
             // remove partial space from beginning
             // printk("4. CALLED unmap_vm\n");
+            unallocate_physical_pages(current, curr->vm_start, addr + REQUESTED_SIZE(length) - curr->vm_start);
             curr->vm_start = addr + REQUESTED_SIZE(length);
         }
         prev = curr;
@@ -330,9 +440,6 @@ long vm_area_unmap(struct exec_context *current, u64 addr, int length)
  * Function will invoked whenever there is page fault for an address in the vm area region
  * created using mmap
  */
-static inline void invlpg(unsigned long addr) {
-    asm volatile("invlpg (%0)" ::"r" (addr) : "memory");
-}
 
 long invalid_page_fault_check(struct exec_context *current, u64 addr, int error_code) {
     struct vm_area *curr = current->vm_area;
@@ -351,15 +458,17 @@ long invalid_page_fault_check(struct exec_context *current, u64 addr, int error_
         return -1;
     }
 
+
+
     if(error_code == 0x6 && curr->access_flags == PROT_READ) {
         // write access on a vma with read-only access
         return -1;
     }
-    return 0;
+    return curr->access_flags;
 }
 
 
-long allocate_physical_frame(struct exec_context *current, u64 addr) {
+long allocate_physical_frame(struct exec_context *current, u64 addr, int prot) {
     // printk("PAGE ALLOCATION STARTED FOR ADDRESS: %x\n", addr);
     u64 *current_page = (u64 *)osmap(current->pgd);
     u64 *pgd = (u64 *)(current_page + (((addr<<16)>>16)>>39));
@@ -371,7 +480,7 @@ long allocate_physical_frame(struct exec_context *current, u64 addr) {
         }
         // printk("PFN allocated for PGD: %x\n", pfn);
         // TODO: check if increment has to be performed here
-        // get_pfn(pfn);
+        get_pfn(pfn);
         // *pgd = (pfn<<12) + ((*pgd)&((1<<12) - 1));
         *pgd = (pfn<<12) + 0x19;
     }
@@ -388,7 +497,7 @@ long allocate_physical_frame(struct exec_context *current, u64 addr) {
             return -EINVAL;
         }
         // printk("PFN allocated for PUD: %x\n", pfn);
-        // get_pfn(pfn);
+        get_pfn(pfn);
         // *pud = (pfn<<12) + ((*pgd)&((1<<12) - 1));
         *pud = (pfn<<12) + 0x19;
     }
@@ -406,7 +515,7 @@ long allocate_physical_frame(struct exec_context *current, u64 addr) {
             return -EINVAL;
         }
         // printk("PFN allocated for PMD: %x\n", pfn);
-        // get_pfn(pfn);
+        get_pfn(pfn);
         // *pmd = (pfn<<12) + ((*pgd)&((1<<12) - 1));
         *pmd = (pfn<<12) + 0x19;
     }
@@ -425,9 +534,11 @@ long allocate_physical_frame(struct exec_context *current, u64 addr) {
             return -EINVAL;
         }
         // printk("PFN allocated for PTE: %x\n", pfn);
-        // get_pfn(pfn);
+        get_pfn(pfn);
         // *pte = (pfn<<12) + ((*pgd)&((1<<12) - 1));
-        *pte = (pfn<<12) + 0x19;
+        int temp = 0;
+        if(prot & PROT_WRITE) temp = 8;
+        *pte = (pfn<<12) | (1<<4) | 1 | temp;
     }
     // printk("pte address: %x | pte entry: %x\n", pte, *pte);
 
@@ -448,19 +559,28 @@ long allocate_physical_frame(struct exec_context *current, u64 addr) {
 // use osmap()
 long vm_area_pagefault(struct exec_context *current, u64 addr, int error_code)
 {
-    // printk("pagefault called\n");
-    if(invalid_page_fault_check(current, addr, error_code)) {
+    printk("pagefault called : %x, %d\n", addr, error_code);
+    long val = invalid_page_fault_check(current, addr, error_code);
+    if(val == -1) {
         return -EINVAL;
     }
+    printk("Access flags: %x\n", val);
+    u64 *pte = page_table_walk(current, addr);
+    printk("landing here captain : %x \n", *pte);
+    if(pte && ((*pte) & 8)) {
+        return 1;
+    }
+
     // printk("pagefault called 2\n");
     if(error_code == 0x7) {
+        printk("HELLO\n");
         return handle_cow_fault(current, addr,  PROT_READ | PROT_WRITE);
     }
     // printk("pagefault called 3\n");
 
-    long val = allocate_physical_frame(current, addr);
+    return allocate_physical_frame(current, addr, val);
     // printk("Exit code from page fault handler: %d\n", val);
-    return val;
+    // return val;
 
     // return -EINVAL;
 }
