@@ -18,6 +18,7 @@ struct trace_buffer_info
 	int read;
 	u32 size;
 	char *trace_buffer;
+	u32 pid;
 };
 
 

@@ -102,6 +102,8 @@ long trace_buffer_close(struct file *filep)
 	if(filep == NULL) return -EINVAL;
 	struct trace_buffer_info *trace_buffer_info = filep->trace_buffer;
 	if(trace_buffer_info == NULL) return -EINVAL;
+	struct exec_context *ctx = get_current_ctx();
+	if(filep->trace_buffer->pid != ctx->pid) return 0;
 	char *trace_buffer = trace_buffer_info->trace_buffer;
 	if(trace_buffer == NULL) return -EINVAL;
 	os_page_free(USER_REG, trace_buffer);
@@ -109,6 +111,7 @@ long trace_buffer_close(struct file *filep)
 	if(filep->fops == NULL) return -EINVAL;
 	os_free(filep->fops, sizeof(struct fileops));
 	os_free(filep, sizeof(struct file));
+	// printk("Hi I am called\n");
 	return 0;	
 }
 
@@ -138,6 +141,8 @@ int trace_buffer_read(struct file *filep, char *buff, u32 count)
 		return -EINVAL;
 	}
 	if((filep->mode & O_READ) == 0) return -EINVAL;
+	struct exec_context *ctx = get_current_ctx();
+	if(filep->trace_buffer->pid != ctx->pid) return -EINVAL;
 	
 	struct trace_buffer_info *trace_buffer_info = filep->trace_buffer;
 	// check if trace buffer is valid
@@ -181,7 +186,8 @@ int trace_buffer_write(struct file *filep, char *buff, u32 count)
 		return -EINVAL;
 	}
 	if((filep->mode & O_WRITE) == 0) return -EINVAL;  
-
+	struct exec_context *ctx = get_current_ctx();
+	if(filep->trace_buffer->pid != ctx->pid) return -EINVAL;
 
 	struct trace_buffer_info *trace_buffer_info = filep->trace_buffer;
 	// check if trace buffer is valid
@@ -252,6 +258,7 @@ int sys_create_trace_buffer(struct exec_context *current, int mode)
 	trace_buffer_info->read = 0;
 	trace_buffer_info->write = 0;
 	trace_buffer_info->size = TRACE_BUFFER_MAX_SIZE;
+	trace_buffer_info->pid = current->pid;
 	trace_buffer_info->trace_buffer = trace_buffer;
 
 	// allocating fileops
@@ -278,7 +285,7 @@ int sys_create_trace_buffer(struct exec_context *current, int mode)
 
 // gives the number of params for various syscalls
 int param_numbers(u64 syscall_num) {
-	if(syscall_num == SYSCALL_EXIT) return 0;
+	if(syscall_num == SYSCALL_EXIT) return 1;
 	if(syscall_num == SYSCALL_GETPID) return 0;
 	if(syscall_num == SYSCALL_GETPPID) return 0;
 	if(syscall_num == SYSCALL_FORK) return 0;
@@ -290,7 +297,7 @@ int param_numbers(u64 syscall_num) {
 	if(syscall_num == SYSCALL_GET_COW_F) return 0;
 	if(syscall_num == SYSCALL_CONFIGURE) return 1;
 	if(syscall_num == SYSCALL_DUMP_PTT) return 1;
-	if(syscall_num == SYSCALL_SIGNAL) return 1;
+	if(syscall_num == SYSCALL_SIGNAL) return 2;
 	if(syscall_num == SYSCALL_SLEEP) return 1;
 	if(syscall_num == SYSCALL_EXPAND) return 2;
 	if(syscall_num == SYSCALL_CLONE) return 2;
@@ -384,6 +391,7 @@ int perform_tracing(u64 syscall_num, u64 param1, u64 param2, u64 param3, u64 par
 	if(st_head->is_traced == 0) {
 		return 0;
 	}
+	if(ctx->files[st_head->strace_fd]->trace_buffer->pid != ctx->pid) return 0;
 
 	int bytes_written = 0;
 	int params = param_numbers(syscall_num);
@@ -391,6 +399,7 @@ int perform_tracing(u64 syscall_num, u64 param1, u64 param2, u64 param3, u64 par
 	// store the information directly
 	if(st_head->tracing_mode == FULL_TRACING) {
 		bytes_written = write_strace_buffer(syscall_num, param1, param2, param3, param4, params);
+		// printk("Writing | syscall_num : %d | arguments : %d | read offset : %d | write offset : %d\n", syscall_num, params, ctx->files[st_head->strace_fd]->trace_buffer->read, ctx->files[st_head->strace_fd]->trace_buffer->write);
 		if(bytes_written != BYTES_WRITTEN(params)) {
 			return -EINVAL;
 		}
@@ -493,15 +502,20 @@ int strace_buffer_read(struct file *filep, char *buff, u32 count)
 {
 	// check if filep is a trace buffer 
 	if(filep == NULL) return -EINVAL;
+	// printk("hi1\n");
 	if(filep->type != TRACE_BUFFER) {
 		return -EINVAL;
 	}
+	// printk("hi2\n");
 	if((filep->mode & O_READ) == 0) return -EINVAL;
+	// printk("hi3\n");
 	
 	struct trace_buffer_info *trace_buffer_info = filep->trace_buffer;
 	// check if trace buffer is valid
 	if(trace_buffer_info == NULL) return -EINVAL; 
+	// printk("hi4\n");
 	if(trace_buffer_info->trace_buffer == NULL) return -EINVAL;
+	// printk("hi5\n");
 
 	// reading from trace buffer
 	u32 bytes_read = min(TRACE_BUFFER_MAX_SIZE - trace_buffer_info->size, count);
@@ -523,6 +537,8 @@ int strace_buffer_read(struct file *filep, char *buff, u32 count)
 // On success, return the number of bytes of data filled in the userspace buffer and in case of error, return `-EINVAL`
 int sys_read_strace(struct file *filep, char *buff, u64 count)
 {
+	struct exec_context *ctx = get_current_ctx();
+	if(filep->trace_buffer->pid != ctx->pid) return -EINVAL;
 	u64 bytes_read = 0;
 	u64 bytes;
 	if(count < 0) return -EINVAL;

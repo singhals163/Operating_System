@@ -1,0 +1,1 @@
+{"name":"Local: random","url":"/home/arrowhead/iitk_courses/CS330/Assignment3/gemOS/src/random.cpp","tests":[{"id":1699457523173,"input":"4\n1 2 3 4","output":""}],"interactive":false,"memoryLimit":1024,"timeLimit":3000,"srcPath":"/home/arrowhead/iitk_courses/CS330/Assignment3/gemOS/src/random.cpp","group":"local","local":true}
