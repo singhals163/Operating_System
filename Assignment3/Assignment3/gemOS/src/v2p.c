@@ -104,13 +104,17 @@ long create_new_mapping(struct vm_area* dummy, struct vm_area* curr, int length,
 
 long change_prot_page_frame(u64 *pte, u64 addr, int prot){
     u64 pfn = ((u64)(*pte)) >> 12;
+    // TODO: check if this condition needs to be present or not
     // if((prot & PROT_WRITE) == ((*pte) & (1<<3))) {
     //     return 0;
     // }
-    printk("Old PTE value: %x\n", *pte);
+    // printk("Old PTE value: %x\n", *pte);
     (*pte) = (*pte) ^ (1<<3);
-    printk("New PTE value: %x\n", *pte);
+    // printk("New PTE value: %x\n", *pte);
     invlpg(addr);
+    // u64 *temp = page_table_walk(get_current_ctx(), addr);
+    // printk("entry updated for addr: %x | value: %x\n", temp, *temp);
+
     return 0;
 }
 
@@ -120,7 +124,7 @@ long change_prot_physical_pages(struct exec_context *current, u64 addr, int leng
     while(current_addr < addr + length) {
         u64 *pte = page_table_walk(current, current_addr);
         if(pte) {
-            change_prot_page_frame(pte, addr, prot);
+            change_prot_page_frame(pte, current_addr, prot);
         }
         current_addr = current_addr + PAGE_SIZE;
     }
@@ -218,7 +222,7 @@ long vm_area_mprotect(struct exec_context *current, u64 addr, int length, int pr
  */
 
 long auto_allocate_memory(struct exec_context* current, int length, int prot) {
-    printk("Auto memory allocation started\n");
+    // printk("Auto memory allocation started\n");
     struct vm_area *curr = current->vm_area;
         while(curr) {
             if(curr->vm_next) {
@@ -387,7 +391,7 @@ long unmap_vm(struct exec_context *current, u64 addr, int length) {
             // printk("1. CALLED unmap_vm\n");
             unallocate_physical_pages(current, addr, length);
             if(create_new_address_mapping(current->vm_area, curr, addr + REQUESTED_SIZE(length), curr->vm_end - addr - REQUESTED_SIZE(length), curr->access_flags) == 0) {
-                printk("WTF!! You stuck here??\n");
+                // printk("WTF!! You stuck here??\n");
                 return -EINVAL;
             }
             curr->vm_end = addr;
@@ -540,7 +544,8 @@ long allocate_physical_frame(struct exec_context *current, u64 addr, int prot) {
         if(prot & PROT_WRITE) temp = 8;
         *pte = (pfn<<12) | (1<<4) | 1 | temp;
     }
-    // printk("pte address: %x | pte entry: %x\n", pte, *pte);
+
+    // printk("address: %x | pte entry: %x\n", addr, *pte);
 
     invlpg(addr);
 
@@ -559,21 +564,21 @@ long allocate_physical_frame(struct exec_context *current, u64 addr, int prot) {
 // use osmap()
 long vm_area_pagefault(struct exec_context *current, u64 addr, int error_code)
 {
-    printk("pagefault called : %x, %d\n", addr, error_code);
+    // printk("pagefault called : %x, %d\n", addr, error_code);
     long val = invalid_page_fault_check(current, addr, error_code);
     if(val == -1) {
         return -EINVAL;
     }
-    printk("Access flags: %x\n", val);
+    // printk("Access flags: %x\n", val);
     u64 *pte = page_table_walk(current, addr);
-    printk("landing here captain : %x \n", *pte);
+    // printk("landing here captain : %x \n", *pte);
     if(pte && ((*pte) & 8)) {
         return 1;
     }
 
     // printk("pagefault called 2\n");
     if(error_code == 0x7) {
-        printk("HELLO\n");
+        // printk("HELLO\n");
         return handle_cow_fault(current, addr,  PROT_READ | PROT_WRITE);
     }
     // printk("pagefault called 3\n");
