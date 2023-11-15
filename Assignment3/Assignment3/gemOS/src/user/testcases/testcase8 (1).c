@@ -5,24 +5,17 @@
 int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
 {
 	char *mm1 = mmap(NULL, 45, PROT_READ, 0);
-	// pmap(1);
 	for(int i=0;i<10;i++)
 	{
-		// pmap(1);
 		long ret = cfork();
 		if(ret == 0)
 		{
-			pmap(1);
-			char *mm2 = mmap(NULL, 40, PROT_READ|PROT_WRITE, 0);
-			pmap(1);
 			printf("child %d\n", getpid());
 			sleep(200);
-			printf("calling exit\n");
 			exit(0);
 		}
 		else
 		{
-			// pmap(1);
 			int r = mprotect(mm1, 40, PROT_READ|PROT_WRITE);
 			mm1[0] = 'a';
 			pmap(0);

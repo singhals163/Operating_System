@@ -16,11 +16,11 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
   // All accesses should result in page fault.
   for(int i = 0; i<50; i++)
   {
-    printf("Hi i am called: %d\n", i);
+    // printf("Hi i am called: %d\n", i);
     lazy_alloc[(pages * i)] = 'X';
-    printf("Hi i am returning: %d\n", i);
+    // printf("Hi i am returning: %d\n", i);
   }
-  printf("Hi i have returned\n");
+  // printf("Hi i have returned\n");
 
   // Number of MMAP_Page_Faults should be 50 & 
   // Number of vm_area should 1

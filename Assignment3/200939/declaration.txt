@@ -1,0 +1,13 @@
+“I have read the CSE department’s anti-cheating policy available at https://www.cse.
+iitk.ac.in/pages/AntiCheatingPolicy.html. I understand that plagiarism is a severe
+offense. I have solved this assignment myself without indulging in any plagiarism.
+If my submission is found to be plagiarized from the internet, fellow students, etc.,
+then strict action can be taken against me.”
+
+Name : Shivam Singhal
+Roll No: 200939
+
+Sources used:
+1. class notes
+2. piazza forums
+3. Stack Overflow

@@ -9,7 +9,7 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
     if ((long)mm1 < 0)
     {
         // Testcase failed.
-        printf("%d. Test case failed \n", er++);
+        printf("1. %d. Test case failed \n", er++);
         return 1;
     }
     // vm_area count should be 1.
@@ -18,7 +18,7 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
     if ((long)mm2 < 0)
     {
         // Testcase failed.
-        printf("%d. Test case failed \n", er++);
+        printf("2.%d. Test case failed \n", er++);
         return 1;
     }
     pmap(1);
@@ -26,7 +26,7 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
     if ((long)mm3 < 0)
     {
         // Testcase failed.
-        printf("%d. Test case failed \n", er++);
+        printf("3. %d. Test case failed \n", er++);
         return 1;
     }
     pmap(1);
@@ -34,14 +34,14 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
     int a1 = munmap(mm2 - pages, 2 * pages);
     if (a1 < 0)
     {
-        printf("%d. Test case failed \n", er++);
+        printf("4. %d. Test case failed \n", er++);
         return 1;
     }
     pmap(1);
     int a2 = munmap(mm1 + pages, 7 * pages);
     if (a2 < 0)
     {
-        printf("%d. Test case failed \n", er++);
+        printf("5. %d. Test case failed \n", er++);
         return 1;
     }
     pmap(1);
@@ -49,7 +49,7 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
     if ((long)mm4 >= 0)
     {
         // Testcase failed.
-        printf("%d. Test case failed \n", er++);
+        printf("6. %d. Test case failed \n", er++);
         return 1;
     }
     pmap(1);
@@ -57,7 +57,7 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
     if ((long)mm4 < 0)
     {
         // Testcase failed.
-        printf("%d. Test case failed \n", er++);
+        printf("7. %d. Test case failed \n", er++);
         return 1;
     }
     pmap(1);
@@ -65,7 +65,7 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
     if (res < 0)
     {
         // Testcase failed.
-        printf("%d. Test case failed \n", er++);
+        printf("8. %d. Test case failed \n", er++);
         return 1;
     }
     pmap(1);
@@ -73,7 +73,7 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
     if (a3 < 0)
     {
         // Testcase failed.
-        printf("%d. Test case failed \n", er++);
+        printf("9. %d. Test case failed \n", er++);
         return 1;
     }
     pmap(1);
@@ -81,7 +81,7 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
     if ((long)mm4 < 0)
     {
         // Testcase failed.
-        printf("%d. Test case failed \n", er++);
+        printf("10. %d. Test case failed \n", er++);
         return 1;
     }
     pmap(1);
@@ -89,7 +89,7 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
     if (res < 0)
     {
         // Testcase failed.
-        printf("%d. Test case failed \n", er++);
+        printf("11. %d. Test case failed \n", er++);
         return 1;
     }
 

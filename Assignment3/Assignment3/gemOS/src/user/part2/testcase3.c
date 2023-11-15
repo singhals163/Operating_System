@@ -26,11 +26,11 @@ int main(u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5)
     return 0;
   }
 
-  printf("hey fucker I am here\n");
+  // printf("hey fucker I am here\n");
 
   for(int i = 0; i < 6; i++){
         char* page_write = mm1 +(i*pages);
-        printf("USER SPACE CALL: %x\n", page_write);
+        // printf("USER SPACE CALL: %x\n", page_write);
         page_write[0] = 'A';
   }
   //Page faults should be 6
