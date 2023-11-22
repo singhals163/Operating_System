@@ -1,5 +1,7 @@
 ## Concurrency
 
+Remainging Chapter 32
+
 ### OSTEP Chapter 26 - Concurrency: An Introduction
 
 - Threads share the same address space and thus can access the same data
@@ -400,4 +402,283 @@ actually called, the subsequent park returns immediately instead of sleeping. Th
         }
 
 ### OSTEP Chapter 31 - Semaphores
+    #include <semaphore.h>
+    sem_t s;
+    sem_init(&s, 0, 1);
+>- The second argument to sem init()
+will be set to 0 in all of the examples we’ll see; this indicates that the
+semaphore is shared between threads in the same process. <br>
+See the man
+page for details on other usages of semaphores (namely, how they can
+be used to synchronize access across different processes)
+- definitions of sem_wait and sem_post 
+
+        int sem_wait(sem_t *s) {
+            decrement the value of semaphore s by one
+            wait if value of semaphore s is negative
+        }
+
+        int sem_post(sem_t *s) {
+            increment the value of semaphore s by one
+            if there are one or more threads waiting, wake one
+        }
+
+- sem wait() will either return right away (because the value
+of the semaphore was one or higher when we called sem wait()), or it
+will cause the caller to suspend execution waiting for a subsequent post.
+Of course, multiple calling threads may call into sem wait(), and thus
+all be queued waiting to be woken
+- sem post() does not wait for some particular
+condition to hold like sem wait() does. Rather, it simply increments the
+value of the semaphore and then, if there is a thread waiting to be woken,
+wakes one of them up
+- Third, the value of the semaphore, when negative, is equal to the number of waiting threads. Though the value generally isn’t seen by
+users of the semaphores, this invariant is worth knowing and perhaps
+can help you remember how a semaphore functions
+
+#### Binary Semaphores: Locks
+- problem is to implement a lock
+        sem_t m;
+        sem_init(&m, 0, X); // initialize to X; what should X be?
+       
+        sem_wait(&m);
+        // critical section here
+        sem_post(&m);
+- For locks the value of X = 1
+
+#### Semaphores for ordering
+- problem is to ensure ordering of certain events, example in the below case child should complete its execution before parent
+        sem_t s;
+
+        void *child(void *arg) {
+            printf("child\n");
+            sem_post(&s); // signal here: child is done
+            return NULL;
+        }
+
+        int main(int argc, char *argv[]) {
+            sem_init(&s, 0, X); // what should X be?
+            printf("parent: begin\n");
+            pthread_t c;
+            Pthread_create(&c, NULL, child, NULL);
+            sem_wait(&s); // wait here for child
+            printf("parent: end\n");
+            return 0;
+        }
+- Initial value of X = 0, so that it can be made sure that child runs before parent
+
+#### Producer/Consumer problem
+- Producers generate data items and place them in a buffer; consumers grab said items from the buffer and consume them in some way
+- The put() and get() routines
+
+        int buffer[MAX];
+        int fill = 0;
+        int use = 0;
+    
+        void put(int value) {
+            buffer[fill] = value; // Line F1
+            fill = (fill + 1) % MAX; // Line F2
+        }
+    
+        int get() {
+            int tmp = buffer[use]; // Line G1
+            use = (use + 1) % MAX; // Line G2
+            return tmp;
+        }
+- The first attempt: 
+
+        sem_t empty;
+        sem_t full;
+       
+        void *producer(void *arg) {
+            int i;
+            for (i = 0; i < loops; i++) {
+                sem_wait(&empty); // Line P1
+                put(i); // Line P2
+                sem_post(&full); // Line P3
+            }
+        }
+       
+        void *consumer(void *arg) {
+            int i, tmp = 0;
+            while (tmp != -1) {
+                sem_wait(&full); // Line C1
+                tmp = get(); // Line C2
+                sem_post(&empty); // Line C3
+                printf("%d\n", tmp);
+            }
+        }
+       
+        int main(int argc, char *argv[]) {
+            // ...
+            sem_init(&empty, 0, MAX); // MAX are empty
+            sem_init(&full, 0, 0); // 0 are full
+            // ...
+        }
+    - works fine for MAX = 1
+    - if MAX is not 1, and two producer threads are there, see that in in put() routine, it may not update fill, and two threads may write to the same location
+- Adding mutual exclusion(incorrectly):
+
+        void *producer(void *arg) {
+            int i;
+            for (i = 0; i < loops; i++) {
+                sem_wait(&mutex); // Line P0 (NEW LINE)
+                sem_wait(&empty); // Line P1
+                put(i); // Line P2
+                sem_post(&full); // Line P3
+                sem_post(&mutex); // Line P4 (NEW LINE)
+            }
+        }
+        
+        void *consumer(void *arg) {
+            int i;
+            for (i = 0; i < loops; i++) {
+                sem_wait(&mutex); // Line C0 (NEW LINE)
+                sem_wait(&full); // Line C1
+                int tmp = get(); // Line C2
+                sem_post(&empty); // Line C3
+                sem_post(&mutex); // Line C4 (NEW LINE)
+                printf("%d\n", tmp);
+            }
+        }
+    - The problem here is that, the consumer may run before and thus have the mutex lock and may never let producer run, leading to a deadlock
+- Adding it correctly:
+
+        void *producer(void *arg) {
+            int i;
+            for (i = 0; i < loops; i++) {
+                sem_wait(&empty); // Line P0
+                sem_wait(&mutex); // Line P1 (NEW LINE)
+                put(i); // Line P2
+                sem_post(&mutex); // Line P3 (NEW LINE)
+                sem_post(&full); // Line P4
+            }
+        }
+        
+        void *consumer(void *arg) {
+            int i;
+            for (i = 0; i < loops; i++) {
+                sem_wait(&full); // Line C0
+                sem_wait(&mutex); // Line C1 (NEW LINE)
+                int tmp = get(); // Line C2
+                sem_post(&mutex); // Line C3 (NEW LINE)
+                sem_post(&empty); // Line C4
+                printf("%d\n", tmp);
+            }
+        }
+#### Reader-Writer Locks
+- admits that different data structure accesses might require different kinds of locking. For example, imagine a number of concurrent list operations, including inserts and simple lookups.
+-  lookups simply read the data structure; as long as we can
+guarantee that no insert is on-going, we can allow many lookups to proceed concurrently
+- Reader-Writer Lock implementation: 
+
+        typedef struct _rwlock_t {
+            sem_t lock; // binary semaphore (basic lock)
+            sem_t writelock; // allow ONE writer/MANY readers
+            int readers; // #readers in critical section
+        } rwlock_t;
+       
+        void rwlock_init(rwlock_t *rw) {
+            rw->readers = 0;
+            sem_init(&rw->lock, 0, 1);
+            sem_init(&rw->writelock, 0, 1);
+        }
+       
+        void rwlock_acquire_readlock(rwlock_t *rw) {
+            sem_wait(&rw->lock);
+            rw->readers++;
+            if (rw->readers == 1) // first reader gets writelock
+                sem_wait(&rw->writelock);
+            sem_post(&rw->lock);
+        }
+       
+        void rwlock_release_readlock(rwlock_t *rw) {
+            sem_wait(&rw->lock);
+            rw->readers--;
+            if (rw->readers == 0) // last reader lets it go
+                sem_post(&rw->writelock);
+            sem_post(&rw->lock);
+        }
+       
+        void rwlock_acquire_writelock(rwlock_t *rw) {
+            sem_wait(&rw->writelock);
+        }
+       
+        void rwlock_release_writelock(rwlock_t *rw) {
+            sem_post(&rw->writelock);
+        }
+
+- More interesting is the pair of routines to acquire and release read
+locks. When acquiring a read lock, the reader first acquires lock and
+then increments the readers variable to track how many readers are
+currently inside the data structure. The important step then taken within
+rwlock acquire readlock() occurs when the first reader acquires
+the lock; in that case, the reader also acquires the write lock by calling
+sem wait() on the writelock semaphore, and then releasing the lock
+by calling sem post().
+- Thus, once a reader has acquired a read lock, more readers will be
+allowed to acquire the read lock too; however, any thread that wishes to
+acquire the write lock will have to wait until all readers are finished; the
+last one to exit the critical section calls sem post() on “writelock” and
+thus enables a waiting writer to acquire the lock.
+- This approach works (as desired), but does have some negatives, especially when it comes to fairness. In particular, it would be relatively easy
+for readers to starve writers.
+
+>Think of how to manage the starve condition for writer
+
+#### Dining Philosopher's problem
+- Read it from the book, an easy one, simply break the cycle by using the forks for the fourth one in different order
+
+        int left(int p) { return p; }
+        int right(int p) { return (p + 1) % 5; }
+        void get_forks(int p) {
+            if (p == 4) {
+                sem_wait(&forks[right(p)]);
+                sem_wait(&forks[left(p)]);
+            } else {
+                sem_wait(&forks[left(p)]);
+                sem_wait(&forks[right(p)]);
+            }
+        }
+        void put_forks(int p) {
+            sem_post(&forks[left(p)]);
+            sem_post(&forks[right(p)]);
+        }
+
+#### Thread Throttling 
+- Assume there is a memory intensive region which requires a lot of memory to run
+- You can figure out how many threads can simultaneously enter such a region and thus give this value to your semaphore, essentially limiting the number of threads that can access this piece of code
 - 
+
+#### Implementing Semaphores
+
+    typedef struct __Zem_t {
+        int value;
+        pthread_cond_t cond;
+        pthread_mutex_t lock;
+    } Zem_t;
+
+    // only one thread can call this
+    void Zem_init(Zem_t *s, int value) {
+        s->value = value;
+        Cond_init(&s->cond);
+        Mutex_init(&s->lock);
+    }
+
+    void Zem_wait(Zem_t *s) {
+        Mutex_lock(&s->lock);
+        while (s->value <= 0)
+            Cond_wait(&s->cond, &s->lock);
+        s->value--;
+        Mutex_unlock(&s->lock);
+    }
+
+    void Zem_post(Zem_t *s) {
+        Mutex_lock(&s->lock);
+        s->value++;
+        Cond_signal(&s->cond);
+        Mutex_unlock(&s->lock);
+    }
+
+>Allen Downey’s book on concurrency and programming with semaphores
+
