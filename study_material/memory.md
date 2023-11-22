@@ -215,4 +215,81 @@ VPN | PFN | other bits
 - a valid bit which tells the hardware if there is a valid translation present in the entry
 - a few are reserved for the OS. A wired register can be set by the OS to tell the hardware how many slots of the TLB to reserve for the OS; the OS uses these reserved mappings for code and data that it wants to access during critical times, where a TLB miss would be problematic (e.g., in the TLB miss handler)
 -  We refer to this phenomenon as exceeding the **TLB coverage**, if the number of pages a process accesses exceeds the number of pages table entries that the TLB can hold
+
+### OSTEP Chapter 20 - Paging: Smaller Tables
+- We have to store the page tables in less space as per-process storing the page tables will occupy a lot of memory
+- Using larger page tables can reduce the number of entries in the page table per-process but this would at the same time allocate a bigger page for storing less data and thus may lead to internal fragmentation
+- Hence, generally the size of pages used in systems is that of 4KB or 8KB
+
+#### Hybrid Approach: Pages and Segments
 - 
+
+
+### OSTEP Chapter 21 - Beyond Physical Memory: Mechanisms
+- We relax the assumption that the address space of every process always fits inside the physical memory
+- The idea is that we assume we have infinitely large memory which is slower and we can swap pages in and out of physical memory to this swap area
+-  In operating systems, we generally refer to such space as **swap space**, because we swap pages out of memory to it and swap pages into memory from it
+- The OS can read from and write to the swap space, in page-sized units
+- Example
+    - 4-page physical memory and an 8-page swap space.
+    <img src="./images/Screenshot from 2023-11-23 00-39-21.png"><br>
+    - Three processes (Proc 0, Proc 1, and Proc 2) are actively sharing physical memory; each of the three, however, only have some of their valid pages in memory
+    - The rest located in swap space on disk 
+    - A fourth process (Proc 3) has all of its pages swapped out to disk, and thus clearly isn’t currently running.
+    - One block of swap remains free 
+    - Even from this tiny example, hopefully you can see how using swap space allows the system to pretend that memory is larger than it actually is
+- We should note that swap space is not the only on-disk location for swapping traffic. For example, assume you are running a program binary (e.g., ls, or your own compiled main program). The code pages from this binary are initially found on disk, and when the program runs, they are loaded into memory
+- Assuming a hardware-managed TLB, a VA access proceeds in the following fashion: 
+    1. Goes to the TLB, if finds the entry corresponding to the given VA valid and protection bits set, it returns
+    2. Else goes to the page table, and accesses the PTE, if found valid and present in the memory, updates the TLB, else if not valid returns segmentation fault
+    3. if not present but valid, calls the page-fault handler which finally loads the page back into the memory. Uses **present bit** to check this
+
+#### Page Fault
+- **In both hardware-managed and software-managed TLBs, if the page is not present in physical memory, the control goes back to the page-fault handler i.e. the OS**
+- The OS uses the PTE to store the address of the page it has been swapped to in the disk and uses this address to access the disk and load its content to a new Page in memory, update the PFN to the new PFN and later set the valid and present bit to 1
+- Note that while the I/O is in flight, the process will be in the blocked state. Thus, the OS will be free to run other ready processes while the page fault is being serviced. Because I/O is expensive, this overlap of the I/O (page fault) of one process and the execution of another is yet another way a multiprogrammed system can make the most effective use of its hardware
+>- They call this as page fault, find the exact definition of a page fault and in what scenarios it may occur, why in assignment it was occuring for other cases as well?
+
+- Hardware control flow for accessing the page
+
+        VPN = (VirtualAddress & VPN_MASK) >> SHIFT
+        (Success, TlbEntry) = TLB_Lookup(VPN)
+        if (Success == True) // TLB Hit
+            if (CanAccess(TlbEntry.ProtectBits) == True)
+                Offset = VirtualAddress & OFFSET_MASK
+                PhysAddr = (TlbEntry.PFN << SHIFT) | Offset
+                Register = AccessMemory(PhysAddr)
+            else
+                RaiseException(PROTECTION_FAULT)
+        else // TLB Miss
+            PTEAddr = PTBR + (VPN * sizeof(PTE))
+            PTE = AccessMemory(PTEAddr)
+            if (PTE.Valid == False)
+                RaiseException(SEGMENTATION_FAULT)
+            else
+                if (CanAccess(PTE.ProtectBits) == False)
+                    RaiseException(PROTECTION_FAULT)
+                else if (PTE.Present == True)
+                    // assuming hardware-managed TLB
+                    TLB_Insert(VPN, PTE.PFN, PTE.ProtectBits)
+                    RetryInstruction()
+                else if (PTE.Present == False)
+                    RaiseException(PAGE_FAULT)
+
+- OS page fault handler
+
+        PFN = FindFreePhysicalPage()
+        if (PFN == -1) // no free page found
+            PFN = EvictPage() // run replacement algorithm
+        DiskRead(PTE.DiskAddr, PFN) // sleep (waiting for I/O)
+        PTE.present = True // update page table with present
+        PTE.PFN = PFN // bit and translation (PFN)
+        RetryInstruction() // retry instruction
+- **To keep a small amount of memory free, most operating systems thus
+have some kind of high watermark (HW) and low watermark (LW) to
+help decide when to start evicting pages from memory. How this works is
+as follows: when the OS notices that there are fewer than LW pages available, a background thread that is responsible for freeing memory runs.
+The thread evicts pages until there are HW pages available. The background thread, sometimes called the swap daemon or page daemon1
+,
+then goes to sleep, happy that it has freed some memory for running processes and the OS to use**
+
