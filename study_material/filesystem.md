@@ -186,5 +186,65 @@ thus the inode table comes right after)
     - 
 
 #### OSTEP Chapter 41: Crash consistency and journaling
-    - 
+- An example
+    - Initial state of disk
+<img src="./images/Screenshot from 2023-11-21 21-57-37.png">
+    - Initial Data representation of inode
+<img src="./images/Screenshot from 2023-11-21 21-57-59.png">
+    - Final state of disk
+<img src="./images/Screenshot from 2023-11-21 21-58-39.png">
+    - Final Data representation of inode
+<img src="./images/Screenshot from 2023-11-21 21-58-20.png">
+- Crash scenarios
+    - **Just the data block (Db) is written to disk.** In this case, the data is on disk, but there is no inode that points to it and no bitmap that even says the block is allocated. Thus, it is as if the write never occurred. This case is not a problem at all, from the perspective of file-system crash consistency
+    - **Just the updated inode (I[v2]) is written to disk.** In this case, the inode points to the disk address (5) where Db was about to be written, but Db has not yet been written there. Thus, if we trust that pointer, we will read garbage data from the disk (the old contents of disk address 5).<br>
+    Along with that, the inode will suggest that the data has been written in the alloted block number but the bitmask will suggest otherwise resulting in an inconsistency
+    - **Just the updated bitmap (B[v2]) is written to disk.** In this case, the bitmap indicates that block 5 is allocated, but there is no inode that points to it. Thus the file system is inconsistent again; if left unresolved, this write would result in a space leak, as block 5 would never be used by the file system.
+    - **The inode (I[v2]) and bitmap (B[v2]) are written to disk, but not data (Db).** In this case, the file system metadata is completely consistent: the inode has a pointer to block 5, the bitmap indicates that 5 is in use, and thus everything looks OK from the perspective of the file system’s metadata. But there is one problem: 5 has garbage in it again.
+    - **The inode (I[v2]) and the data block (Db) are written, but not the bitmap (B[v2]).** In this case, we have the inode pointing to the correct data on disk, but again have an inconsistency between the inode and the old version of the bitmap (B1). Thus, we once again need to resolve the problem before using the file system.
+    - **The bitmap (B[v2]) and data block (Db) are written, but not the inode (I[v2]).** In this case, we again have an inconsistency between the inode and the data bitmap. However, even though the block was written and the bitmap indicates its usage, we have no idea which file it belongs to, as no inode points to the file
+- ***FSCK***: File System Checker
+    - let inconsistencies happen and then fix them later (when rebooting)
+    -  Note that such an approach can’t fix all problems; consider, for example, the case above where the file system looks consistent but the inode points to garbage data. The only real goal is to make sure the file system metadata is internally consistent.
+
+#### FSCK Summary
+- **Superblock:** fsck first checks if the superblock looks reasonable,
+mostly doing sanity checks such as making sure the file system size
+is greater than the number of blocks that have been allocated. Usually the goal of these sanity checks is to find a suspect (corrupt)
+superblock; in this case, the system (or administrator) may decide
+to use an alternate copy of the superblock.
+- **Free blocks:** Next, fsck scans the inodes, indirect blocks, double
+indirect blocks, etc., to build an understanding of which blocks are
+currently allocated within the file system. It uses this knowledge
+to produce a correct version of the allocation bitmaps; thus, if there
+is any inconsistency between bitmaps and inodes, it is resolved by
+trusting the information within the inodes. The same type of check
+is performed for all the inodes, making sure that all inodes that look
+like they are in use are marked as such in the inode bitmaps.
+- **Inode state:** Each inode is checked for corruption or other problems. For example, fsck makes sure that each allocated inode has
+a valid type field (e.g., regular file, directory, symbolic link, etc.). If
+there are problems with the inode fields that are not easily fixed, the
+inode is considered suspect and cleared by fsck; the inode bitmap
+is correspondingly updated.
+- **Inode links:** fsck also verifies the link count of each allocated inode. As you may recall, the link count indicates the number of different directories that contain a reference (i.e., a link) to this particular file. To verify the link count, fsck scans through the entire directory tree, starting at the root directory, and builds its own
+link counts for every file and directory in the file system. If there
+is a mismatch between the newly-calculated count and that found
+within an inode, corrective action must be taken, usually by fixing
+the count within the inode. If an allocated inode is discovered but
+no directory refers to it, it is moved to the lost+found directory.
+- **Duplicates:** fsck also checks for duplicate pointers, i.e., cases where
+two different inodes refer to the same block. If one inode is obviously bad, it may be cleared. Alternately, the pointed-to block could
+be copied, thus giving each inode its own copy as desired.
+- **Bad blocks:** A check for bad block pointers is also performed while
+scanning through the list of all pointers. A pointer is considered
+“bad” if it obviously points to something outside its valid range,
+e.g., it has an address that refers to a block greater than the partition size. In this case, fsck can’t do anything too intelligent; it just
+removes (clears) the pointer from the inode or indirect block.
+>- **Directory checks:** fsck does not understand the contents of user
+files; however, directories hold specifically formatted information
+created by the file system itself. Thus, fsck performs additional
+integrity checks on the contents of each directory, making sure that
+“.” and “..” are the first entries, that each inode referred to in a
+directory entry is allocated, and ensuring that no directory is linked
+to more than once in the entire hierarchy.
 
