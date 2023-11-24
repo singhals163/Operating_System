@@ -411,6 +411,13 @@ semaphore is shared between threads in the same process. <br>
 See the man
 page for details on other usages of semaphores (namely, how they can
 be used to synchronize access across different processes)
+<br> If pshared is nonzero, then the semaphore is shared between
+       processes, and should be located in a region of shared memory
+       (see shm_open(3), mmap(2), and shmget(2)).  (Since a child
+       created by fork(2) inherits its parent's memory mappings, it can
+       also access the semaphore.)  Any process that can access the
+       shared memory region can operate on the semaphore using
+       sem_post(3), sem_wait(3), and so on
 - definitions of sem_wait and sem_post 
 
         int sem_wait(sem_t *s) {
@@ -680,5 +687,21 @@ for readers to starve writers.
         Mutex_unlock(&s->lock);
     }
 
->Allen Downey’s book on concurrency and programming with semaphores
 
+- Reader/Writer lock with no starvation
+
+Lets develop no starvation solution with a requirement that no thread should be blocked to acquire the lock by any other thread which is ready to acquire the lock at later point in time. To develop no starvation locks we are following lock request order. Lets consider a lock request order as shown below:
+…. R1, R2, R3, R4, R5, W1 …..
+R stands for read request and W stands for write request.
+In this scenario, the order in which reader threads: “R1, R2, R3, R4” acquires shared lock and get access to shared object has no impact on the shared object and also note that one reader thread can not starve another reader thread. The only restriction is all the reader threads: “R1, R2, R3, R4” must acquire shared lock (in any order) before the writer thread W1 attempts to acquires the exclusive lock. To avoid this before a writer thread puts lock request there should not be any reader thread waiting to acquire the shared lock.
+
+Lets consider another lock request sequence as shown below:
+… W1, W2, W3, R1 …
+When writer thread W1 has acquired the exclusive lock, if we allow both writers W2 & W3 to proceed with the lock request, both these writers will compete with each other to get the exclusive lock (kernel thread scheduling will decide which one of them will be unblocked once W1 gives up the exclusive lock.) Similarly when W2 has acquired the exclusive lock and if we allow both W3 & R1 to proceed with the lock request, both W3 and R1 will compete for the shared object access. To avoid this situation till a writer thread doesn’t give up the exclusive lock we must not allow other threads to put the lock request.
+
+The strict ordering is based on two rules:
+1. Before allowing a writer thread to compete for exclusive lock, one must make sure there are no readers waiting to acquire the shared lock.
+2. When a writer has granted the exclusive lock no other lock request should be put till the writer thread gives up exclusive lock.
+
+
+- Acquire other lock whenever a writer arrives which blocks the requests for user and put them to sleep
