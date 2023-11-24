@@ -53,6 +53,21 @@ The following markdown contains some of the important tasks and terms that I cam
   -  The wait() system call suspends execution of the calling thread until one of its children terminates.
   - on  success,  returns the process ID of the terminated child; on error, -1 is returned.
   -  A  state change  is  considered to be: the child terminated; the child was stopped by a signal; or the child was resumed by a signal.
+  - **Note**: It waits for only 1 child
+
+          pid_t child_pid, wpid;
+          int status = 0;
+
+          //Father code (before child processes start)
+
+          for (int id=0; id<n; id++) {
+              if ((child_pid = fork()) == 0) {
+                  //child code
+                  exit(0);
+              }
+          }
+
+          while ((wpid = wait(&status)) > 0);
 
 - **exit()**: On child exit( ), the wait() system call returns in parent
 - What is the first user process?
@@ -298,6 +313,7 @@ fork() is called, please see the man pages.
         int brk(void *address);
   - If possible, set the end of uninitialized data segment at address
   - Can be used by C library to allocate/free memory dynamically 
+  - return 0 on success and -1 on failure
 - **sbrk()**
 
         void * sbrk (long size);
