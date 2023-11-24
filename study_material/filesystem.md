@@ -2,6 +2,11 @@
 
 The following markdown contains the notes corresponding to the filesystem API and persistance module of Operating Systems
 
+#### Importants: 
+- read directory: can view its contents
+- write directory: can create files and directories in the given directory
+- execute directory: can traverse through the directory
+
 #### OSTEP Chapter 39
 -  A directory, also has a low-level name (i.e., an inode number), but its contents are quite specific: it contains a list of (user-readable name, low-level name) pairs. For example, The directory that “foo” resides in thus would have an entry (“foo”, “10”) 
 - As stated above, file descriptors are managed by the operating system on a per-process basis
@@ -140,7 +145,7 @@ thus the inode table comes right after)
     - Deleting a file (e.g., calling unlink()) can leave an empty space in the middle of the directory, and hence there should be some way to mark that as well (e.g., with a reserved inode number such as zero). Such a delete is one reason the record length is used: a new entry may reuse an old, bigger entry and thus have extra space within
     - A directory has an inode, somewhere in the inode table (with the type field of the inode marked as “directory” instead of “regular file”)
     - The directory has data blocks pointed to by the inode (and perhaps, indirect blocks); these data blocks live in the data block region of our simple file system. Our on-disk structure thus remains unchanged
-    - > Other possible way to store directories, XFS [S+96] stores directories in B-tree form, making file create operations (which have to ensure that a file name has not been used before creating it) faster than systems with simple lists that must be scanned in their entirety
+    - Other possible way to store directories, XFS [S+96] stores directories in Binary-tree form, making file create operations (which have to ensure that a file name has not been used before creating it) faster than systems with simple lists that must be scanned in their entirety
     - In **FAT**, files are stored in form of tables where each entry points to the beginning of the next address block where data is stored, it does not have any inodes
 - **Free Space Management**
     - When we create a file, we will have to allocate an inode for that file. The file system will thus search through the bitmap for an inode that is free, and allocate it to the file; the file system will have to mark the inode as used (with a 1) and eventually update the on-disk bitmap with the correct information. A similar set of activities take place when a data block is allocated
@@ -180,6 +185,46 @@ thus the inode table comes right after)
     10% of total memory
     - >Modern systems, in contrast, employ a dynamic partitioning approach. Specifically, many modern operating systems integrate virtual memory
     pages and file system pages into a unified page cache
+
+    - Extra reading<br>
+    As the examples above show, reading and writing files can be expensive, incurring many I/Os to the (slow) disk. To remedy what would
+clearly be a huge performance problem, most file systems aggressively
+use system memory (DRAM) to cache important blocks.
+Imagine the open example above: without caching, every file open
+would require at least two reads for every level in the directory hierarchy
+(one to read the inode of the directory in question, and at least one to read
+its data). With a long pathname (e.g., /1/2/3/ ... /100/file.txt), the file
+system would literally perform hundreds of reads just to open the file!
+Early file systems thus introduced a fixed-size cache to hold popular
+blocks. As in our discussion of virtual memory, strategies such as LRU
+and different variants would decide which blocks to keep in cache. This
+fixed-size cache would usually be allocated at boot time to be roughly
+10% of total memory.
+This static partitioning of memory, however, can be wasteful; what
+if the file system doesn’t need 10% of memory at a given point in time?
+With the fixed-size approach described above, unused pages in the file
+cache cannot be re-purposed for some other use, and thus go to waste.
+Modern systems, in contrast, employ a dynamic partitioning approach.
+Specifically, many modern operating systems integrate virtual memory
+pages and file system pages into a unified page cache. In this way,
+memory can be allocated more flexibly across virtual memory and file
+system, depending on which needs more memory at a given time.
+Now imagine the file open example with caching. The first open may
+generate a lot of I/O traffic to read in directory inode and data, but subsequent file opens of that same file (or files in the same directory) will
+mostly hit in the cache and thus no I/O is needed.
+Let us also consider the effect of caching on writes. Whereas read I/O
+can be avoided altogether with a sufficiently large cache, write traffic has
+to go to disk in order to become persistent. Thus, a cache does not serve
+as the same kind of filter on write traffic that it does for reads. That said,
+write buffering (as it is sometimes called) certainly has a number of performance benefits. First, by delaying writes, the file system can batch
+some updates into a smaller set of I/Os; for example, if an inode bitmap
+is updated when one file is created and then updated moments later as
+another file is created, the file system saves an I/O by delaying the write
+after the first update. Second, by buffering a number of writes in memory,
+the system can then schedule the subsequent I/Os and thus increase performance. Finally, some writes are avoided altogether by delaying them;
+for example, if an application creates a file and then deletes it, delaying
+the writes to reflect the file creation to disk avoids them entirely. In this
+case, laziness (in writing blocks to disk) is a virtue
 
 #### OSTEP Chapter 40 FFS
     - FFS divides the disk into a number of cylinder groups 
