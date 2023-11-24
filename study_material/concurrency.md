@@ -1,7 +1,5 @@
 ## Concurrency
 
-Remainging Chapter 32
-
 ### OSTEP Chapter 26 - Concurrency: An Introduction
 
 - Threads share the same address space and thus can access the same data
