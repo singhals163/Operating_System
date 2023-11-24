@@ -1,7 +1,7 @@
 ## Operating System
 
 RTFM!!<br>
-*~One of the many things I learned in the course*
+*~One of the many things I learned during the course*
 
 This repository contains the implementation of three assignments and notes and study materials referred to during the course. All the subdirectories contain READMEs to guide you through.
 
